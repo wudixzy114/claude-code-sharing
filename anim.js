@@ -1,7 +1,7 @@
 // ===================================================================
 // SlideAnim — the interactive demos.
-// Demo slide indices (0-based, match onShow): 3=loop, 6=budget,
-// 9=compression, 14=permission. If you reorder slides, fix onShow().
+// Demo slide indices (0-based, match onShow): 2=loop, 7=budget,
+// 10=compression, 13=permission. If you reorder slides, fix onShow().
 // Each demo is a small state machine driven by clicks; onShow() resets
 // the demo whose slide just became visible.
 // ===================================================================
@@ -470,13 +470,13 @@
 
   // ============================================================
   // wire up onShow -> reset the demo for the slide being shown
-  // slide indices: 3=loop, 6=budget, 9=compress, 14=permission
+  // slide indices: 2=loop, 7=budget, 10=compress, 13=permission
   // ============================================================
   function onShow(index){
-    if(index===3) LoopDemo.reset();
-    if(index===6) BudgetDemo.reset();
-    if(index===9) CompDemo.reset();
-    if(index===14) PermDemo.reset();
+    if(index===2) LoopDemo.reset();
+    if(index===7) BudgetDemo.reset();
+    if(index===10) CompDemo.reset();
+    if(index===13) PermDemo.reset();
   }
 
   window.SlideAnim = {

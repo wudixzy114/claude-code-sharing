@@ -17,7 +17,7 @@
     <p class="subtitle">今天不背功能列表。就围着四个我们平时用它、心里其实没底的问题来讲——把底层机制讲清楚，也让你之后能用得更顺。</p>
   </div>
   <div class="four-keys" style="margin-top:54px">
-    <div class="key k1"><div class="num">1</div><b>循环</b><span>都知道它是个循环。可这一圈里，它到底替我们干了哪些看不见的活？</span></div>
+    <div class="key k1"><div class="num">1</div><b>循环与配置</b><span>都知道它是个循环。可这一圈里，它到底替我们干了哪些看不见的活？配置又在开场定了什么？</span></div>
     <div class="key k2"><div class="num">2</div><b>记忆</b><span>凭什么能一直聊？窗口里到底装了啥？聊到很长，质量会不会掉？</span></div>
     <div class="key k3"><div class="num">3</div><b>权限</b><span>这轮授的权，换个对话、换个子代理、换个 Hook，还算数吗？</span></div>
     <div class="key k4"><div class="num">4</div><b>扩展</b><span>Skill 到底怎么写？官方有没有例子？MCP 怎么最快接进来？</span></div>
@@ -68,55 +68,116 @@
   <div class="foot"><span>灰字标的那三步（准备 / 查权限 / 收拾结果），是它替你干、你却看不见的活</span><span>02</span></div>
 </section>
 
-<!-- ============ 04 状态机 ============ -->
-<section class="slide" data-note="很多人以为里面有棵很复杂的决策树。其实主干特别朴素：准备、问、处理，有工具就跑完接着来，没有就结束。真正花功夫的是那几个岔路——上下文满了、工具挂了、你按了取消。可靠的意思是：错误落进一个看得见、能恢复、能停下的状态，而不是让模型永远别出错。">
-  <div class="top"><div class="kicker">一、循环</div><div class="chapter">04 / 24</div></div>
-  <h2>这一圈里它到底替我们干了啥？功夫全在岔路上</h2>
-  <p class="subtitle">循环主干简单到你会失望。真正的工程质量，在"接着做、拐回来、停下来"这三种岔路怎么处理——这些平时对我们是不透明的。</p>
-  <div class="state">
+<!-- ============ 03 分支与恢复（合并旧 04 状态机 + 旧 05 工具管线） ============ -->
+<section class="slide" data-note="接着 demo，回答审核最想问的：这一圈里到底替我们干了啥？很多人以为里面有棵复杂决策树，其实主干朴素到失望：准备、问一次模型、跑完塞回去。真正花功夫的是四条岔路，而且每条岔路在源码里都有明确的转移类型——我讲的时候口语在前、括号里给真实标识名，方便有人想对着源码查。分两类：Continue 是本轮没完、带个状态接着转；Terminal 是这一圈就地收尾。四条岔路：①接着做，模型要调工具，跑完带回下一轮，next_turn，Continue；②拐回来，上下文撑爆（413），先做塌缩排干 collapse_drain_retry，还不行触发一次反应式压缩 reactive_compact_retry，都是 Continue；③纠偏，一批工具里某个 Bash 挂了，只砍掉同批兄弟工具、本轮照常继续，仍是 next_turn；④停下来，你取消 aborted、预算用光、或撞上修不了的错 model_error / prompt_too_long，落进 Terminal。右下角那条 8 级恢复链是它出错时按顺序试的自救梯子，从最轻的流式回退一路到预算续跑，实在不行才把错误交还给你。工具管线只留一句话带过：调工具要过一串关，其中收拾结果那关决定上下文会不会被撑爆，细节留到记忆章第 10 页。落脚：可靠 = 错误落进看得见、能恢复、能停下的状态，这就是 while(true) 和真能干活的循环的区别。">
+  <div class="top"><div class="kicker">一、循环与配置</div><div class="chapter">03 / 25</div></div>
+  <h2>这一圈里到底替我们干了啥？功夫全在岔路上</h2>
+  <p class="subtitle">主干朴素到你会失望：准备 → 问一次模型 → 跑完塞回去。工程质量全在四条岔路——源码里每条都有明确的转移类型：<b>Continue</b>（本轮没完，带状态接着转）或 <b>Terminal</b>（就地收尾）。</p>
+  <div class="state" style="margin-top:20px">
     <div class="terminal"><b>开始</b><span>你的输入 / 一个子任务 / 接着上次的会话</span></div>
     <div class="middle">
-      <div class="state-node"><b>准备</b><span>先看预算够不够<br>不够就先压缩</span></div>
+      <div class="state-node"><b>准备</b><span>先把历史捋一遍<br>不够就压缩（下一页）</span></div>
       <div class="state-node"><b>问一次模型</b><span>流式吐出来<br>是文字还是要调工具</span></div>
       <div class="state-node"><b>跑完塞回去</b><span>工具结果<br>作为新消息加进历史</span></div>
     </div>
     <div class="terminal"><b>结束</b><span>做完 / 你取消 / 预算用光 / 遇到修不了的错</span></div>
   </div>
-  <div class="grid four" style="margin-top:44px">
-    <div class="card"><div class="label">接着做</div><p><b>模型要调工具</b><br>跑完把结果带进下一轮，再问一次。</p></div>
-    <div class="card"><div class="label">拐回来</div><p><b>上下文太长了</b><br>先压缩腾出空间，再重新问模型。</p></div>
-    <div class="card"><div class="label">纠偏</div><p><b>工具或测试挂了</b><br>把报错整理好丢给模型，让它判断怎么办。</p></div>
-    <div class="card"><div class="label">停下来</div><p><b>你或策略叫停</b><br>把取消信号传下去，把正在跑的东西释放掉。</p></div>
+  <div class="grid four" style="margin-top:26px">
+    <div class="card"><div class="label">接着做 · Continue</div><p><b>模型要调工具</b><br>跑完把结果带进下一轮，再问一次。<br><span class="small muted"><code>next_turn</code></span></p></div>
+    <div class="card"><div class="label">拐回来 · Continue</div><p><b>上下文撑爆了（413）</b><br>先塌缩排干，还不行再触发一次反应式压缩，然后重试。<br><span class="small muted"><code>collapse_drain_retry → reactive_compact_retry</code></span></p></div>
+    <div class="card"><div class="label">纠偏 · Continue</div><p><b>一批工具里某个 Bash 挂了</b><br>只砍掉同批兄弟工具，本轮照常继续。<br><span class="small muted">sibling abort，仍 <code>next_turn</code></span></p></div>
+    <div class="card"><div class="label">停下来 · Terminal</div><p><b>你取消 / 预算用光 / 修不了的错</b><br>落进终止态，干净收尾。<br><span class="small muted"><code>aborted · model_error · prompt_too_long</code></span></p></div>
   </div>
-  <div class="band yellow-band" style="margin-top:20px"><b>一句话：</b>可靠靠的是"出了错也能被看见、能恢复、能干净地停下"。这就是 while(true) 和"真能干活的循环"的区别。</div>
-  <div class="foot"><span>while(true) 不等于没有边界</span><span>04</span></div>
+  <div class="grid two" style="margin-top:18px;grid-template-columns:1.5fr 1fr">
+    <div class="band yellow-band"><b>出错时的 8 级恢复链（按顺序自救）：</b>流式回退 → 换模型回退 → 塌缩排干 → 反应式压缩 → 输出上限升到 64K → 输出恢复（最多 3 次）→ Stop Hook → 预算续跑。<b>逐级试，实在不行才把错误交还给你。</b></div>
+    <div class="band purple-band"><b>调工具要过一串关</b>（认出→校验→查权限→真跑→<b>收拾结果</b>）。<b>"收拾结果"那关</b>决定上下文会不会被撑爆——细节见记忆章第 10 页。</div>
+  </div>
+  <div class="foot"><span>可靠 = 错误落进看得见、能恢复、能停下的状态；这就是 while(true) 和"真能干活的循环"的区别</span><span>03</span></div>
 </section>
 
-<!-- ============ 05 工具管线 ============ -->
-<section class="slide" data-note="模型说要调工具，不等于立刻执行。中间要过一串关：认出来、补默认值、校验、查权限、要不要问你、真跑、把结果收拾干净、写进历史。重点讲第七关——结果收拾：太长要截断，太短也要给个明确信号，别让模型以为没结果。给团队的启示：内部工具别只给一个万能 shell，要做成语义清楚的动作。">
-  <div class="top"><div class="kicker">一、循环</div><div class="chapter">05 / 24</div></div>
-  <h2>"调工具"不是直接执行，是过一条流水线</h2>
-  <p class="subtitle">模型只是提了个意图。运行时要把这个意图，变成一个有边界、能回放、出了事能查的操作。第 7 关"收拾结果"，直接决定你的上下文会不会被撑爆。</p>
-  <div class="pipeline">
-    <div class="p"><i>1</i><b>认出来</b><span>是哪个工具，参数是什么</span></div>
-    <div class="p"><i>2</i><b>补齐</b><span>补上工作目录、超时、默认值</span></div>
-    <div class="p"><i>3</i><b>校验</b><span>类型、路径、命令、能碰的范围</span></div>
-    <div class="p"><i>4</i><b>查规则</b><span>命中放行 / 要问 / 禁止</span></div>
-    <div class="p"><i>5</i><b>要授权</b><span>影响大的动作，先问你一句</span></div>
-    <div class="p"><i>6</i><b>真跑</b><span>隔离、超时、能取消、控并发</span></div>
-    <div class="p hi"><i>7</i><b>收拾结果</b><span>太长截断、太短给信号、脱敏、结构化</span></div>
-    <div class="p"><i>8</i><b>归档</b><span>写进会话、事件流和操作记录</span></div>
+<!-- ============ 04 每轮上下文管理链（NEW） ============ -->
+<section class="slide" data-note="这页把上一页那条准备岔路展开，回答一个很实的问题：每次问模型之前，运行时到底对历史做了什么。答案是一条固定顺序的预处理管线，六步，从便宜到贵、从不丢信息到开始丢信息，逐级往下。别念英文名，讲清每步干嘛：①从上次压缩边界起算，只带边界之后的消息，之前的已经被摘要顶掉了；②给工具结果的 token 花销设个上限，大日志先在这一步被压住；③按需局部裁历史，命中 HISTORY_SNIP 门控才动；④增量微压缩，一点点合并旧内容；⑤上下文塌缩，命中 CONTEXT_COLLAPSE 门控，把尾端旧结果换成引用；⑥兜底整段自动压缩，最贵、最后才触发，就是上一页拐回来那条岔路真正调模型的地方。关键一句：这六步是每一轮问模型前默认都会走的，你完全看不见；四层压缩偏用户视角、能手动 /compact 的那套细节留到记忆章第 10 页讲，这里只讲顺序和位置。提一句诚实边界：顺序取自逆向文档，逐步的数值阈值文档没给。">
+  <div class="top"><div class="kicker">一、循环与配置</div><div class="chapter">04 / 25</div></div>
+  <h2>每问一次模型前，运行时先把历史捋一遍</h2>
+  <p class="subtitle">上一页"准备"那步不是一下子完成的，是一条<b>固定顺序</b>的预处理管线：从便宜、不丢信息，逐级走到贵、开始丢信息。这一整条你完全看不见。</p>
+  <div class="pipeline" style="grid-template-columns:repeat(6,1fr);margin-top:26px">
+    <div class="p"><i>1</i><b>从压缩边界起算</b><span>只带上次压缩之后的消息，之前的已被摘要顶掉</span><span class="small muted"><code>getMessagesAfterCompactBoundary</code></span></div>
+    <div class="p"><i>2</i><b>工具结果设上限</b><span>给工具结果的 token 花销封顶，大日志先在这压住</span><span class="small muted"><code>applyToolResultBudget</code></span></div>
+    <div class="p"><i>3</i><b>按需裁历史</b><span>命中门控才动，局部裁掉一段旧历史</span><span class="small muted"><code>snipCompactIfNeeded</code></span></div>
+    <div class="p"><i>4</i><b>增量微压缩</b><span>一点点合并旧内容，尽量不惊动整段</span><span class="small muted"><code>microcompact</code></span></div>
+    <div class="p"><i>5</i><b>上下文塌缩</b><span>命中门控，把尾端旧结果换成引用</span><span class="small muted"><code>applyCollapsesIfNeeded</code></span></div>
+    <div class="p hi"><i>6</i><b>兜底自动压缩</b><span>最贵、最后才触发，整段压成摘要 + 近期原文</span><span class="small muted"><code>autocompact</code></span></div>
   </div>
-  <div class="grid two" style="margin-top:30px">
-    <div class="band orange-band"><b>改文件这一类：</b>要管路径范围、几处同时改会不会冲突、写入是不是原子的、能不能回滚。</div>
-    <div class="band purple-band"><b>跑 Shell 这一类：</b>要管在哪个目录跑、命令什么意思、超时、取消、输出太长怎么截。</div>
+  <div class="grid two" style="margin-top:26px">
+    <div class="band"><b>它就是上一页"拐回来"那条岔路的实现：</b>前五步都尽量本地处理、不惊动模型；只有第 6 步真需要发一次模型请求做摘要。所以越往右越贵，能在左边解决就不往右走。</div>
+    <div class="band orange-band"><b>这里只讲顺序和位置。</b>四层压缩偏"用户能手动 <code>/compact</code>"的那套细节，留到记忆章第 10 页——那页能点着看。</div>
   </div>
-  <div class="foot"><span>好工具表达的是业务动作——发布、检索、变更，而不是"帮我执行任意命令"</span><span>05</span></div>
+  <div class="foot"><span>预处理链的顺序取自逆向文档；逐步的数值阈值文档未给出，随版本会变</span><span>04</span></div>
 </section>
 
-<!-- ============ 06 上下文里装了啥（budget demo） ============ -->
+<!-- ============ 05 配置文件（原记忆章，前移） ============ -->
+<section class="slide" data-note="接着讲配置——它和循环一样，是启动就定下的宏观设置，所以放在这一章。直接回答审核问的：配置文件读哪些？优先级什么？按什么顺序覆盖？加载后锁定还是运行时能改？分两张表。左边 settings.json 的五级优先级，高到低：企业 managed、命令行参数、项目本地 settings.local.json、项目共享 settings.json、用户 ~/.claude。强调一点：权限规则是合并不是覆盖。右边讲生效方式：大多数实时热更新（权限、hook 改完就生效），例外是 model 和 outputStyle 要重启。再顺带把 CLAUDE.md 那四层放上来。落脚：别把该热更新的当成要重启，也别以为高优先级会把低优先级整个盖掉。">
+  <div class="top"><div class="kicker">一、循环与配置</div><div class="chapter">05 / 25</div></div>
+  <h2>配置读哪些、谁盖谁、改完要不要重启？</h2>
+  <p class="subtitle">这几个问题最容易踩坑：同一条规则在不同项目表现不一样，多半是优先级和"合并还是覆盖"没搞清。</p>
+  <div class="grid two" style="margin-top:14px">
+    <div>
+      <div class="code-cap">settings.json 五级优先级（高 → 低）</div>
+      <div class="priostack">
+        <div class="ptier"><b>企业 managed</b><span>组织下发，谁都盖不掉</span></div>
+        <div class="ptier"><b>命令行参数</b><span>本次启动临时指定</span></div>
+        <div class="ptier"><b>项目本地 <code>.claude/settings.local.json</code></b><span>只你自己、不提交 git</span></div>
+        <div class="ptier"><b>项目共享 <code>.claude/settings.json</code></b><span>随仓库提交，团队共享</span></div>
+        <div class="ptier"><b>用户 <code>~/.claude/settings.json</code></b><span>你所有项目的兜底</span></div>
+      </div>
+      <div class="band" style="margin-top:12px"><b>注意：权限规则走"合并"，不走"覆盖"。</b>高优先级不会把低优先级整份盖掉；各层的 allow / ask / deny 叠加在一起生效。</div>
+    </div>
+    <div>
+      <div class="code-cap">改完要重启吗？大多不用</div>
+      <table class="matrix">
+        <tr><th>改什么</th><th>生效方式</th></tr>
+        <tr><td>权限规则</td><td><span class="yes">实时</span> · 热更新，改完即生效</td></tr>
+        <tr><td>Hook 配置</td><td><span class="yes">实时</span> · 热重载，不用重启</td></tr>
+        <tr><td><code>model</code></td><td><span class="no">要重启</span> · 换模型需新会话</td></tr>
+        <tr><td><code>outputStyle</code></td><td><span class="no">要重启</span></td></tr>
+      </table>
+      <div class="code-cap" style="margin-top:16px">CLAUDE.md 也分四层（跨会话长期记忆）</div>
+      <table class="matrix">
+        <tr><td>企业</td><td>组织策略，优先级最高</td></tr>
+        <tr><td><code>~/.claude/CLAUDE.md</code></td><td>你所有项目通用的个人习惯</td></tr>
+        <tr><td><code>./CLAUDE.md</code></td><td>随仓库提交，团队共享</td></tr>
+        <tr><td><code>CLAUDE.local.md</code></td><td>只你自己、不提交</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span>不确定当前生效的是哪条，用 /permissions、/context 看真实结果</span><span>05</span></div>
+</section>
+
+<!-- ============ 06 指令优先级（原记忆章，前移） ============ -->
+<section class="slide" data-note="配置除了文件优先级，还有一层：每一轮到底该听谁的。别把项目指令写成一大段长 Prompt，把它当成有优先级的配置：组织红线不能改、项目约定、个人习惯，分清楚。会变的进度放会话摘要，别塞进永久指令。这也解释了为什么同一句话在不同仓库表现不一样。放在配置这一节收尾，正好承接上一页的文件优先级。">
+  <div class="top"><div class="kicker">一、循环与配置</div><div class="chapter">06 / 25</div></div>
+  <h2>每一轮到底该听谁的：指令是有优先级的</h2>
+  <p class="subtitle">同一句话在不同仓库表现不同，往往不是提示词不够长，是它没分清哪条规则更硬、来自哪里。</p>
+  <div class="hierarchy">
+    <div class="stack">
+      <div class="tier"><b>组织红线</b><span>安全、合规，谁都不能覆盖</span></div>
+      <div class="tier"><b>系统能力</b><span>有哪些工具、什么环境、能用哪些技能</span></div>
+      <div class="tier"><b>项目规矩</b><span>怎么构建、测试卡在哪、哪些目录别碰</span></div>
+      <div class="tier"><b>个人习惯</b><span>输出格式、临时的小偏好</span></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="outcome"><b>这一轮真正生效的</b><p>硬规则 + 当前环境 + 项目约定 + 任务摘要 + 最近几条关键线索</p><div class="divider"></div><p class="small"><b>别往里塞：</b>完整历史、变来变去的进度、成堆的日志。那些归会话摘要和工具结果管。</p></div>
+  </div>
+  <div class="grid two" style="margin-top:26px">
+    <div class="band"><b>项目指令要短而硬：</b>怎么构建、怎么验证、哪些目录不能动、交付要给什么证据。</div>
+    <div class="band orange-band"><b>会话摘要要活：</b>做了什么、哪些结论已经验证过、下一步还有什么风险。</div>
+  </div>
+  <div class="foot"><span>关键是分层和来源，不是写一段更长的提示词</span><span>06</span></div>
+</section>
+
+<!-- ============ 07 上下文里装了啥（budget demo） ============ -->
 <section class="slide" data-note="第二专题，回答凭什么能一直聊。先破误解：它不是靠无限大的窗口，是把有限窗口当资源调度。点填充，看六块各占多少。这里不再只分看得见和看不见，而是按来源与进入时机区分：启动注入、对话产生、运行时回填、输出预留。重点看橙色工具结果，它是运行中动态回填、也最容易失控的一块。百分比是实测示例，随版本和项目会变，现场可 /context 查。">
-  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">06 / 24</div></div>
+  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">07 / 25</div></div>
   <h2>上下文窗口里装了什么</h2>
   <p class="subtitle">以 20 万 token 的窗口为例，点一下按进入顺序填充：启动注入的固定开销、对话产生的内容、运行时回填的工具结果。</p>
   <div class="budgetdemo">
@@ -144,12 +205,12 @@
     </div>
   </div>
   <div class="demo-bar" style="margin-top:14px"><button class="demo-btn" id="budgetPlay">填充看看 ▶</button><button class="demo-btn ghost" id="budgetReset">重来</button><span class="demo-status" id="budgetStatus">点一下，按进入顺序区分启动注入、对话产生和动态回填</span></div>
-  <div class="foot"><span>token 量级与百分比均为实测示例（部分取自官方文档示意值），随版本 / 项目 / 接入的 MCP 会变；现场可用 /context 查实际占用</span><span>06</span></div>
+  <div class="foot"><span>token 量级与百分比均为实测示例（部分取自官方文档示意值），随版本 / 项目 / 接入的 MCP 会变；现场可用 /context 查实际占用</span><span>07</span></div>
 </section>
 
 <!-- ============ 07 注入机制（NEW） ============ -->
 <section class="slide" data-note="这页回答一轮上下文到底怎么拼出来的，重点讲你看不见的隐式注入。分两段隐式 + 一段显式。第一段启动前缀：系统提示词和内置工具 schema 先进，然后 CLAUDE.md 按目录树从根到工作目录逐层拼接——企业策略、~/.claude、项目根、当前目录，同级里 CLAUDE.local.md 排在 CLAUDE.md 之后。关键一句：这些文件全部拼接进去，谁也不覆盖谁，越靠近工作目录的排越后、最后读到；而且 CLAUDE.md 是作为系统提示词之后的一条 user 消息注入的，你在终端里根本看不到。子目录 CLAUDE.md、带 paths 的规则、Skill 正文、MCP 完整 schema 都留到运行时按需加载。中间那段人显式发起的一笔带过。收尾强调：隐式注入占了一大半，人真正手输的只有中间一段。">
-  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">07 / 24</div></div>
+  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">08 / 25</div></div>
   <h2>一轮上下文，是按什么顺序组装起来的？</h2>
   <p class="subtitle">大部分内容是你看不见的「隐式注入」：启动前缀 + 运行时按需。你真正手输的，只有中间那一小段。</p>
   <div class="inject-flow" style="margin-top:16px">
@@ -190,14 +251,14 @@
     </div>
   </div>
   <div class="band purple-band inject-note"><b>一句话记住：</b>01 和 03 两段隐式内容，终端里几乎都看不到，却占了上下文一大半；人真正手输的只有中间 02 那一小段。想省上下文，先盯住隐式这两段。</div>
-  <div class="foot"><span>CLAUDE.md 走「拼接」不走「覆盖」；子目录规则、Skill 正文、完整工具 schema 尽量留在运行时按需阶段</span><span>07</span></div>
+  <div class="foot"><span>CLAUDE.md 走「拼接」不走「覆盖」；子目录规则、Skill 正文、完整工具 schema 尽量留在运行时按需阶段</span><span>08</span></div>
 </section>
 
 <!-- ============ 08 工具输出防爆炸（NEW） ============ -->
-<section class="slide" data-note="这页只回答一件事：工具结果太长怎么办。先看左边四种情况的处理原则，重点讲太长和太短两行。右边给两个具体例子。太长：一次 grep 命中几百上千行，运行时不会把整坨塞回上下文，而是把完整结果落到一个文件里，只回一条带路径 + 命中数的引用，模型要细看再按路径展开——省下的就是第 06 页那 38%。太短或为空更容易被误判：命令成功但没有输出、或搜索零命中，如果只回一个空字符串，模型会以为工具没跑成，所以运行时会补一句明确信号，比如 exit 0，无输出 或 无匹配（0 处）。把这两种都收拾干净，工具结果这块就不会失控。">
-  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">08 / 24</div></div>
+<section class="slide" data-note="这页只回答一件事：工具结果太长怎么办。先看左边四种情况的处理原则，重点讲太长和太短两行。右边给两个具体例子。太长：一次 grep 命中几百上千行，运行时不会把整坨塞回上下文，而是把完整结果落到一个文件里，只回一条带路径 + 命中数的引用，模型要细看再按路径展开——省下的就是第 07 页那 38%。太短或为空更容易被误判：命令成功但没有输出、或搜索零命中，如果只回一个空字符串，模型会以为工具没跑成，所以运行时会补一句明确信号，比如 exit 0，无输出 或 无匹配（0 处）。把这两种都收拾干净，工具结果这块就不会失控。">
+  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">09 / 25</div></div>
   <h2>工具结果太长怎么办？</h2>
-  <p class="subtitle">第 06 页占用图里橙色 38% 就是这块，最容易膨胀。工具一调完就地整理，别只等后面的压缩兜底。</p>
+  <p class="subtitle">第 07 页占用图里橙色 38% 就是这块，最容易膨胀。工具一调完就地整理，别只等后面的压缩兜底。</p>
   <div class="grid two" style="margin-top:16px;grid-template-columns:1.05fr 1fr">
     <table class="matrix" style="margin-top:0">
       <tr><th>情况</th><th>运行时怎么处理</th></tr>
@@ -223,12 +284,12 @@
       </div>
     </div>
   </div>
-  <div class="foot"><span>能无限膨胀的只有工具结果这一块；把它管住，窗口就稳了一大半</span><span>08</span></div>
+  <div class="foot"><span>能无限膨胀的只有工具结果这一块；把它管住，窗口就稳了一大半</span><span>09</span></div>
 </section>
 
 <!-- ============ 09 压缩机制动画（全场重点） ============ -->
 <section class="slide" data-note="全场最重要的一页，慢慢讲。先纠正一个我自己以前的糊涂说法：不是笼统的四层，源码里其实是两类压法 + 一个触发器。左边：第一类微压缩 microcompact，就地把旧工具结果去重、截断、换引用（限 Read/Bash/Grep 等几类工具的结果），全程本地、不调模型，这是最常发生的；第二类全量压缩 compact，才调一次模型，把旧历史压成摘要 + 打边界 + 保留最近几轮原文 + 回填关键文件，这个较少触发。第三块 autoCompact 不是一种压法，是触发器，盯着有效窗口减 13k 的阈值、时间、以及请求太长被拒（PTL）来决定何时压。手动模式：点压一步，先看微压缩把那块构建日志去重截断换引用（88→52%，不调模型），再点一步升级到全量压缩、调一次模型压成摘要（52→30%，最近一轮原文保留）。讲完手动点看动态压缩，也是手动一步步点：上下文一轮轮涨，autoCompact 越过阈值先做便宜的微压缩、占用回落；又涨、旧结果已被微压过压无可压、仍超限，才升级到全量 LLM 压缩。强调两点：一是大多数时候只做本地微压缩，全量较少触发；二是全量那次是独立模型请求，失败会导致会话继续涨到 Prompt too long——这是我本地日志里真见过的。">
-  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">09 / 24</div></div>
+  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">10 / 25</div></div>
   <h2>压缩其实是两类做法 + 一个触发器，只有一类调模型</h2>
   <div class="demo compdemo">
     <div class="comp-layers" id="compLayers">
@@ -257,12 +318,12 @@
     <button class="demo-btn ghost" id="compReset">重来</button>
     <span class="demo-status" id="compStatus">两类做法：本地微压缩(不调模型) → 不够再升级全量压缩(调一次模型)；autoCompact 只管何时压</span>
   </div>
-  <div class="foot"><span>绿=本地微压缩(不调模型)，黄=全量压缩(调一次模型)，紫=触发器；全量那次模型请求若失败，会话会继续涨到 Prompt too long（占用百分比为实测示例，随版本变）</span><span>09</span></div>
+  <div class="foot"><span>绿=本地微压缩(不调模型)，黄=全量压缩(调一次模型)，紫=触发器；全量那次模型请求若失败，会话会继续涨到 Prompt too long（占用百分比为实测示例，随版本变）</span><span>10</span></div>
 </section>
 
 <!-- ============ 10 质量会不会掉 + 实操 ============ -->
 <section class="slide" data-note="这页回答两个使用者最关心的问题：聊太长会不会变差？我能怎么手动管？先说结论：会——官方明说很长的对话里早期指令可能被丢。触发点：接近有效窗口时自动压缩。用真实日志讲：effectiveWindow=180000 这条线、Reactive compact、summarization returned API error——那次压缩请求失败了，会话就继续涨，直到下一次输入报 Prompt too long。所以别全交给它自动。给四条能当场用的命令。落地建议：重要结论用 # 写进 CLAUDE.md，长任务里主动 /compact 带关注点，比等它自动压更准。">
-  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">10 / 24</div></div>
+  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">11 / 25</div></div>
   <h2>聊太长会变差吗？会。那我能怎么管？</h2>
   <p class="subtitle">上下文接近有效窗口就会自动压缩，压缩就有可能丢细节。别全交给它自动，手上这几条命令要会用。</p>
   <div class="grid two" style="margin-top:16px">
@@ -289,72 +350,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band purple-band" style="margin-top:14px"><b>落地建议：</b>长任务别指望它自动记住关键结论。重要的用 <code>#</code> 写进 CLAUDE.md；快到上限时优先手动 <code>/compact</code> 并带上关注点。</div>
     </div>
   </div>
-  <div class="foot"><span>你手动介入的那几下，往往比它自动压得更准</span><span>10</span></div>
-</section>
-
-<!-- ============ 11 配置文件（NEW） ============ -->
-<section class="slide" data-note="直接回答审核问的：配置文件读哪些？优先级什么？按什么顺序覆盖？加载后锁定还是运行时能改？分两张表。左边 settings.json 的五级优先级，高到低：企业 managed、命令行参数、项目本地 settings.local.json、项目共享 settings.json、用户 ~/.claude。强调一点：权限规则是合并不是覆盖。右边讲生效方式：大多数实时热更新（权限、hook 改完就生效），例外是 model 和 outputStyle 要重启。再顺带把 CLAUDE.md 那四层放上来。落脚：别把该热更新的当成要重启，也别以为高优先级会把低优先级整个盖掉。">
-  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">11 / 24</div></div>
-  <h2>配置读哪些、谁盖谁、改完要不要重启？</h2>
-  <p class="subtitle">这几个问题最容易踩坑：同一条规则在不同项目表现不一样，多半是优先级和"合并还是覆盖"没搞清。</p>
-  <div class="grid two" style="margin-top:14px">
-    <div>
-      <div class="code-cap">settings.json 五级优先级（高 → 低）</div>
-      <div class="priostack">
-        <div class="ptier"><b>企业 managed</b><span>组织下发，谁都盖不掉</span></div>
-        <div class="ptier"><b>命令行参数</b><span>本次启动临时指定</span></div>
-        <div class="ptier"><b>项目本地 <code>.claude/settings.local.json</code></b><span>只你自己、不提交 git</span></div>
-        <div class="ptier"><b>项目共享 <code>.claude/settings.json</code></b><span>随仓库提交，团队共享</span></div>
-        <div class="ptier"><b>用户 <code>~/.claude/settings.json</code></b><span>你所有项目的兜底</span></div>
-      </div>
-      <div class="band" style="margin-top:12px"><b>注意：权限规则走"合并"，不走"覆盖"。</b>高优先级不会把低优先级整份盖掉；各层的 allow / ask / deny 叠加在一起生效。</div>
-    </div>
-    <div>
-      <div class="code-cap">改完要重启吗？大多不用</div>
-      <table class="matrix">
-        <tr><th>改什么</th><th>生效方式</th></tr>
-        <tr><td>权限规则</td><td><span class="yes">实时</span> · 热更新，改完即生效</td></tr>
-        <tr><td>Hook 配置</td><td><span class="yes">实时</span> · 热重载，不用重启</td></tr>
-        <tr><td><code>model</code></td><td><span class="no">要重启</span> · 换模型需新会话</td></tr>
-        <tr><td><code>outputStyle</code></td><td><span class="no">要重启</span></td></tr>
-      </table>
-      <div class="code-cap" style="margin-top:16px">CLAUDE.md 也分四层（跨会话长期记忆）</div>
-      <table class="matrix">
-        <tr><td>企业</td><td>组织策略，优先级最高</td></tr>
-        <tr><td><code>~/.claude/CLAUDE.md</code></td><td>你所有项目通用的个人习惯</td></tr>
-        <tr><td><code>./CLAUDE.md</code></td><td>随仓库提交，团队共享</td></tr>
-        <tr><td><code>CLAUDE.local.md</code></td><td>只你自己、不提交</td></tr>
-      </table>
-    </div>
-  </div>
-  <div class="foot"><span>不确定当前生效的是哪条，用 /permissions、/context 看真实结果</span><span>11</span></div>
-</section>
-
-<!-- ============ 12 指令优先级 ============ -->
-<section class="slide" data-note="压缩管的是历史放不下，配置管的是读哪些文件，这页管的是每一轮到底该听谁的。别把项目指令写成一大段长 Prompt，把它当成有优先级的配置：组织红线不能改、项目约定、个人习惯，分清楚。会变的进度放会话摘要，别塞进永久指令。这也解释了为什么同一句话在不同仓库表现不一样。">
-  <div class="top"><div class="kicker">二、记忆</div><div class="chapter">12 / 24</div></div>
-  <h2>每一轮到底该听谁的：指令是有优先级的</h2>
-  <p class="subtitle">同一句话在不同仓库表现不同，往往不是提示词不够长，是它没分清哪条规则更硬、来自哪里。</p>
-  <div class="hierarchy">
-    <div class="stack">
-      <div class="tier"><b>组织红线</b><span>安全、合规，谁都不能覆盖</span></div>
-      <div class="tier"><b>系统能力</b><span>有哪些工具、什么环境、能用哪些技能</span></div>
-      <div class="tier"><b>项目规矩</b><span>怎么构建、测试卡在哪、哪些目录别碰</span></div>
-      <div class="tier"><b>个人习惯</b><span>输出格式、临时的小偏好</span></div>
-    </div>
-    <div class="arrow">→</div>
-    <div class="outcome"><b>这一轮真正生效的</b><p>硬规则 + 当前环境 + 项目约定 + 任务摘要 + 最近几条关键线索</p><div class="divider"></div><p class="small"><b>别往里塞：</b>完整历史、变来变去的进度、成堆的日志。那些归会话摘要和工具结果管。</p></div>
-  </div>
-  <div class="grid two" style="margin-top:26px">
-    <div class="band"><b>项目指令要短而硬：</b>怎么构建、怎么验证、哪些目录不能动、交付要给什么证据。</div>
-    <div class="band orange-band"><b>会话摘要要活：</b>做了什么、哪些结论已经验证过、下一步还有什么风险。</div>
-  </div>
-  <div class="foot"><span>关键是分层和来源，不是写一段更长的提示词</span><span>12</span></div>
+  <div class="foot"><span>你手动介入的那几下，往往比它自动压得更准</span><span>11</span></div>
 </section>
 
 <!-- ============ 13 权限分档 ============ -->
 <section class="slide" data-note="第三专题。先摆矛盾：老弹窗问你，烦到你直接全放开；不问，又不敢信它。所以权限不是一个 yes/no 弹窗，是按风险分档的策略。强调决策看的不只是这条命令，还有工具类型、路径、目录、项目规则、组织策略一起。下一页会亲手点给大家看，再下一页专门回答换个对话还算不算数。">
-  <div class="top"><div class="kicker">三、权限</div><div class="chapter">13 / 24</div></div>
+  <div class="top"><div class="kicker">三、权限</div><div class="chapter">12 / 25</div></div>
   <h2>权限不是弹窗，是按风险分档放行</h2>
   <p class="subtitle">问得太多，你烦了就点"全放开"；问得太少，你又不敢真让它自己跑。出路是把不同风险，放进不同速度的通道。</p>
   <div class="permission">
@@ -364,12 +365,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="level auto"><div class="tag">受控的自动档</div><h3>放宽</h3><p>在限定范围和策略下，少问几遍。</p><div class="divider"></div><p class="small">目标：授权尽量小、范围清楚、能撤回能审计。</p></div>
   </div>
   <div class="band" style="margin-top:30px"><b>它判断时看的不只是这条命令：</b>工具类型、参数、路径、在哪个目录、项目规则、组织策略、当前模式、还有你之前的选择，一起决定。</div>
-  <div class="foot"><span>"允许 npm test"和"允许任意 shell"，是完全两码事的授权</span><span>13</span></div>
+  <div class="foot"><span>"允许 npm test"和"允许任意 shell"，是完全两码事的授权</span><span>12</span></div>
 </section>
 
 <!-- ============ 14 权限决策动画（demo） ============ -->
 <section class="slide" data-note="接着上页，让大家亲手点。选三条命令：只读的 Read、跑测试的 npm test、危险的 rm -rf。看同一套关卡，三条命令走出完全不同的结果。强调：确定性规则先过（deny→ask→allow 的顺序），模型只在规则盖不住的灰区帮忙理解语义；遇到不确定，永远选更保守的那一边。">
-  <div class="top"><div class="kicker">三、权限</div><div class="chapter">14 / 24</div></div>
+  <div class="top"><div class="kicker">三、权限</div><div class="chapter">13 / 25</div></div>
   <h2>点一条命令，看它怎么被判</h2>
   <div class="demo permdemo">
     <div class="perm-picker" id="permPicker">
@@ -391,12 +392,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <span class="demo-status" id="permStatus">同一套关卡，三条命令结局完全不同</span>
   </div>
   <div class="band red-band" style="margin-top:16px"><b>原则：</b>确定性规则先走（deny → ask → allow），模型只在灰区帮忙理解语义。系统一旦拿不准——解析失败、超时、不确定——默认选更保守的一边。</div>
-  <div class="foot"><span>好的权限系统会告诉你"为什么"，而不只是"行 / 不行"</span><span>14</span></div>
+  <div class="foot"><span>好的权限系统会告诉你"为什么"，而不只是"行 / 不行"</span><span>13</span></div>
 </section>
 
 <!-- ============ 15 权限复用矩阵 ============ -->
 <section class="slide" data-note="专门回答大家最疑惑的：这轮授的权，换个场景还算不算数。逐格讲：Bash 的不再问会写进 settings.local.json，同一个仓库跨会话都记得；文件编辑的不再问只当次有效。子代理默认继承父的权限，可以用 frontmatter 收窄。Hook 跑在权限之前，能 allow/deny/ask，但盖不过硬 deny。最后给粒度和五级优先级，告诉大家怎么自定义。">
-  <div class="top"><div class="kicker">三、权限</div><div class="chapter">15 / 24</div></div>
+  <div class="top"><div class="kicker">三、权限</div><div class="chapter">14 / 25</div></div>
   <h2>这轮授的权，换个对话/子代理/Hook 还算数吗？</h2>
   <p class="subtitle">这是使用者最容易踩坑的地方。答案得分情况——记住下面这张表，基本就不会误判了。</p>
   <div class="grid two" style="margin-top:12px">
@@ -418,12 +419,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:14px"><b>记住：多层规则是"合并"的。</b>各来源的 allow/ask/deny 叠加，<b>deny 永远最硬</b>。不确定当前生效哪条，用 <code>/permissions</code> 看。</div>
     </div>
   </div>
-  <div class="foot"><span>能管到命令前缀、目录、参数这一级；跨会话记不记得，取决于写进了哪个文件</span><span>15</span></div>
+  <div class="foot"><span>能管到命令前缀、目录、参数这一级；跨会话记不记得，取决于写进了哪个文件</span><span>14</span></div>
 </section>
 
 <!-- ============ 16 安全分层 ============ -->
 <section class="slide" data-note="这页别讲成纯安全。核心是安全和好用不是二选一，是分层协商：越低风险越顺畅，越高影响越要拦。最后那条产品启示很关键——权限体验必须能解释、能最小授权、能撤回，否则用户迟早全放开，治理就白设计了。">
-  <div class="top"><div class="kicker">三、权限</div><div class="chapter">16 / 24</div></div>
+  <div class="top"><div class="kicker">三、权限</div><div class="chapter">15 / 25</div></div>
   <h2>安全和好用，不是二选一</h2>
   <p class="subtitle">按风险分三条通道：低风险走得飞快，高影响必须拦一下。这样既不烦人，又不失控。</p>
   <div class="lanes">
@@ -432,12 +433,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="lane high"><div class="lane-tag">高影响<br>必须拦</div><div class="lane-body"><b>改配置、访问网络、发布、删除、跨系统写入</b> —— 提高确认门槛，留审计，收紧范围。</div></div>
   </div>
   <div class="band yellow-band" style="margin-top:24px"><b>一条产品经验：</b>权限体验必须能解释、能只授权最小范围、能撤回。否则用户嫌烦，最后一律"全部放开"——你设计的那套治理就等于没有。</div>
-  <div class="foot"><span>治理不是把它关笼子里，是让它能真正进到线上环境干活</span><span>16</span></div>
+  <div class="foot"><span>治理不是把它关笼子里，是让它能真正进到线上环境干活</span><span>15</span></div>
 </section>
 
 <!-- ============ 17 五种扩展对比 ============ -->
 <section class="slide" data-note="第四专题。先把五种扩展点一句话区分清楚，别混成一个。Skill=打包的提示与流程；MCP=接外部系统成为工具；Hook=生命周期拦截；命令=可复用提示（已并入 Skill）；子代理=独立上下文的子任务。后面三页分别手把手讲 Hook、Skill、MCP 怎么写、怎么最快接。">
-  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">17 / 24</div></div>
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">16 / 25</div></div>
   <h2>五种扩展点，一句话先分清</h2>
   <p class="subtitle">"我想把自己的东西接进去"，第一步是选对扩展点。它们解决的是不同的问题。</p>
   <table class="exttable">
@@ -449,12 +450,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <tr><td>子代理</td><td>独立上下文的子任务代理（<code>.claude/agents/*.md</code>）</td><td>隔离长任务、专职探索 / 审查，省主上下文</td></tr>
   </table>
   <div class="band purple-band" style="margin-top:22px"><b>别把"接得多"当成功：</b>每接一个，都带来认证、权限、可用性和上下文噪音的成本。接下来三页，分别手把手过一遍 Hook、Skill、MCP。</div>
-  <div class="foot"><span>官方已把自定义命令并进 Skill——同一个 /deploy，Skill 多出支持文件、frontmatter 和自动触发</span><span>17</span></div>
+  <div class="foot"><span>官方已把自定义命令并进 Skill——同一个 /deploy，Skill 多出支持文件、frontmatter 和自动触发</span><span>16</span></div>
 </section>
 
 <!-- ============ 18 Hook 实操 ============ -->
 <section class="slide" data-note="回答哪些生命周期点我能用，却根本不知道。Hook 就是在这些节点上插一段自己的命令，确定性执行，不靠模型判断，而且改完热重载不用重启。左边列常用事件，右边给一个真能抄的配置：改完文件自动跑 prettier。再给两个高频场景：挡住读 .env、rm 命令要二次确认。强调 PreToolUse 能返回 allow/deny/ask，但盖不过硬 deny。">
-  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">18 / 24</div></div>
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">17 / 25</div></div>
   <h2>Hook：那些"能用却没人知道"的生命周期点</h2>
   <p class="subtitle">Hook 就是在流程的固定节点上，插一段你自己的命令——确定性执行，不靠模型判断，改完热重载不用重启。很多人不知道有这东西可用。</p>
   <div class="grid two" style="margin-top:14px">
@@ -481,12 +482,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:14px"><b>另外两个高频场景：</b><br>· <code>PreToolUse</code> 匹配 <code>Read</code> → 命中 <code>.env</code> 就 <b>deny</b>，守住密钥<br>· <code>PreToolUse</code> 匹配 <code>Bash</code> → 命中 <code>rm</code> 就 <b>ask</b>，危险命令二次确认</div>
     </div>
   </div>
-  <div class="foot"><span>Hook 是"到点必执行"的确定性规则，适合做治理；别拿它当模型的替代品</span><span>18</span></div>
+  <div class="foot"><span>Hook 是"到点必执行"的确定性规则，适合做治理；别拿它当模型的替代品</span><span>17</span></div>
 </section>
 
 <!-- ============ 18-A Hook 详解：是什么/为什么/权限边界 ============ -->
 <section class="slide" data-note="这页集中回答几个关于 Hook 的常见疑问，别念表，挑重点讲。一，Hook 是干什么的：在流程固定节点上插一段你自己的命令，确定性执行——到点必跑，不靠模型判断。二，为什么要用：模型可能忘记或选择不做某件事，但 Hook 是运行时强制触发的，适合做治理和硬约束。三，能实现什么特点：确定性执行、生命周期拦截、PreToolUse 能返回 allow/deny/ask、能往上下文注入内容、改完热重载。四，什么时候需要：需要每次都必须发生的事——提交前 lint、改完自动格式化、守住密钥、危险命令拦截、审计留痕。右边是全场最要强调的权限边界：Hook 不被沙箱限制，以你账户的完整权限直接跑,没有二次确认弹窗,Claude Code 不替你拦——你自己负全责。PreToolUse 虽然跑在权限检查之前、能影响决策,但 allow 只是免掉弹窗,盖不过静态 deny,尤其组织 managed 的 deny 永远赢。硬约束要用权限系统,不是 Hook。">
-  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">Hook · 详解</div></div>
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">18 / 25</div></div>
   <h2>Hook 到底是干什么的？为什么要用它？</h2>
   <div class="grid two" style="margin-top:14px">
     <div>
@@ -507,12 +508,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint"><b>结论：</b>要做<b>硬约束</b>用权限系统（deny 规则）；Hook 适合做<b>确定性动作与治理</b>，别拿它当安全边界。</div>
     </div>
   </div>
-  <div class="foot"><span>Hook = 你亲手写、到点必跑的命令；能力很大，安全责任也全在你</span><span>18-A</span></div>
+  <div class="foot"><span>Hook = 你亲手写、到点必跑的命令；能力很大，安全责任也全在你</span><span>18</span></div>
 </section>
 
 <!-- ============ 18-B Hook 实操：怎么加 ============ -->
 <section class="slide" data-note="这页直接回答：我想给自己的 Claude Code 加 Hook，具体怎么操作。三步。第一步选作用域、打开对应的 settings.json：只给自己用写 ~/.claude、给团队共享写项目 .claude 并提交 git、只本机本项目写 .local。顺带提优先级：managed 最高，然后 local、project、user，权限相关是合并不是覆盖。第二步按 hooks → 事件名 → matcher → command 的结构写，给一个能直接抄的 PreToolUse 例子：匹配 Bash、命中 rm 就 ask 二次确认。第三步保存即生效,热重载不用重启;想看已经注册了哪些 Hook 就输 /hooks——注意它是只读浏览器,只能看不能在里面加,加还是得编辑文件或让 Claude 帮你写。最后提醒 exit code 语义:0 成功、2 阻断并把 stderr 回给模型,以及别在 Hook 里跑没验证过的命令。">
-  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">Hook · 实操</div></div>
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">19 / 25</div></div>
   <h2>怎么给我的 Claude Code 加 Hook？三步</h2>
   <p class="subtitle">直接回答"具体怎么操作"：<b>选作用域 → 写结构 → 存盘即生效</b>。全程就是编辑一个 <code>settings.json</code>。</p>
   <div class="grid two" style="margin-top:12px">
@@ -551,12 +552,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint red"><b>再强调一次：</b>Hook 以你的完整权限跑、无确认——别把没验证过的命令写进去。</div>
     </div>
   </div>
-  <div class="foot"><span>加 Hook = 编辑 settings.json 的三步；/hooks 只能看，加靠改文件</span><span>18-B</span></div>
+  <div class="foot"><span>加 Hook = 编辑 settings.json 的三步；/hooks 只能看，加靠改文件</span><span>19</span></div>
 </section>
 
 <!-- ============ 19 Skill 实操 ============ -->
 <section class="slide" data-note="直接回答 Skill 到底怎么写、官方有没有示例、怎么最快接。最小结构就是一个目录加一个 SKILL.md，目录名就是命令名。frontmatter 里只有 description 建议必填。关键机制是渐进式披露：平时只把名字和 description 放进上下文，body 只在被调用时才载入，所以长参考资料几乎零成本——这正好呼应记忆章那页注入机制。官方示例在 cookbooks 和官方 marketplace。最快上手就是 mkdir 加写文件，热加载。">
-  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">19 / 24</div></div>
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">20 / 25</div></div>
   <h2>Skill 到底怎么写？最小就是一个目录 + 一个文件</h2>
   <div class="grid two" style="margin-top:14px">
     <div>
@@ -575,7 +576,7 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint"><b>只有 description 建议必填。</b>它决定 Claude"什么时候该用这个 skill"，写清触发场景很关键。</div>
     </div>
     <div>
-      <div class="band" style="margin-bottom:12px"><b>怎么被"按需触发"（渐进式披露）：</b>平时只把每个 skill 的<b>名字 + description</b> 放进上下文；完整 body <b>只在被调用时</b>才载入。所以长参考资料不用时几乎零成本——就是记忆章第 07 页那套注入机制。改完 SKILL.md <b>当场生效</b>，不用重启。</div>
+      <div class="band" style="margin-bottom:12px"><b>怎么被"按需触发"（渐进式披露）：</b>平时只把每个 skill 的<b>名字 + description</b> 放进上下文；完整 body <b>只在被调用时</b>才载入。所以长参考资料不用时几乎零成本——就是记忆章第 08 页那套注入机制。改完 SKILL.md <b>当场生效</b>，不用重启。</div>
       <div class="code-cap">官方有没有示例？有</div>
       <table class="matrix">
         <tr><th>来源</th><th>内容</th></tr>
@@ -588,12 +589,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
 <span class="c"># 写好 SKILL.md → 直接可用</span></div>
     </div>
   </div>
-  <div class="foot"><span>装官方的：/plugin marketplace add … → /plugin install skill-creator@…</span><span>19</span></div>
+  <div class="foot"><span>装官方的：/plugin marketplace add … → /plugin install skill-creator@…</span><span>20</span></div>
 </section>
 
 <!-- ============ 20 MCP 实操 ============ -->
 <section class="slide" data-note="回答怎么最快接一个 MCP。一条 claude mcp add 就行。三种传输：http（远程，最推荐，支持 OAuth）、sse（已弃用）、stdio（本地进程，注意 -- 后面才是启动命令）。作用域三种：local 默认只你自己只当前项目、project 写进 .mcp.json 可提交给团队、user 你所有项目通用。/mcp 看连接状态。补一句呼应记忆章：MCP 工具的完整 schema 是按需加载的，接得多主要压的是那 14% 工具定义那块。">
-  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">20 / 24</div></div>
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">21 / 25</div></div>
   <h2>MCP：一条命令，把外部系统接成工具</h2>
   <p class="subtitle">MCP 把知识库、工单、数据库这些外部系统，包成 Claude 能统一调用的工具。接入就一条 <code>claude mcp add</code>。</p>
   <div class="grid two" style="margin-top:14px">
@@ -621,12 +622,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:14px"><b>要给团队共享：</b>用 <code>--scope project</code>，把 <code>.mcp.json</code> 提交进仓库，队友拉下来就能用。<br><span class="small"><code>.mcp.json</code> 里有 <code>url</code> 就必须写 <code>type</code>（http / sse），否则报错。</span></div>
     </div>
   </div>
-  <div class="foot"><span>从个人到团队：.claude/skills、.claude/agents、.mcp.json 提交 git；跨项目复用就打成 Plugin 走 marketplace</span><span>20</span></div>
+  <div class="foot"><span>从个人到团队：.claude/skills、.claude/agents、.mcp.json 提交 git；跨项目复用就打成 Plugin 走 marketplace</span><span>21</span></div>
 </section>
 
 <!-- ============ 21 放回真实流程 ============ -->
 <section class="slide" data-note="把三种扩展放回一个真实流程。同一个重构并验证，团队能力在不同阶段以不同形式进来。落脚点：先接高频、少歧义、可审计的；直接生产发布这类，最后再接。">
-  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">21 / 24</div></div>
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">22 / 25</div></div>
   <h2>放回真实流程：每种扩展该插在哪</h2>
   <p class="subtitle">还是"重构 parsePath 并验证"这一件事，团队能力在不同阶段、以不同形式进来。</p>
   <div class="timeline">
@@ -641,12 +642,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="card"><div class="label">再治理</div><p><b>认证 + 降级 + 观测</b><br>外部依赖挂了，它得知道怎么继续或停下。</p></div>
     <div class="card"><div class="label">最后放</div><p><b>影响大的动作</b><br>发布、生产变更、跨系统写入，最晚接。</p></div>
   </div>
-  <div class="foot"><span>扩展决定它能不能进团队的活，而不只是个人演示</span><span>21</span></div>
+  <div class="foot"><span>扩展决定它能不能进团队的活，而不只是个人演示</span><span>22</span></div>
 </section>
 
 <!-- ============ 22 多Agent ============ -->
 <section class="slide" data-note="多 Agent 只讲一个判断框架，别神化它。两种模式：轻量 fork 和 协调者-worker。核心：更多 Agent 不等于更聪明，成本来自复制上下文、抢工具、结果冲突。先问三个问题：任务真的能拆吗、输出有没有约定的结构、一个挂了能不能局部恢复。答不上，顺序做通常更靠谱。">
-  <div class="top"><div class="kicker">附：多 Agent</div><div class="chapter">22 / 24</div></div>
+  <div class="top"><div class="kicker">附：多 Agent</div><div class="chapter">23 / 25</div></div>
   <h2>多 Agent：先问一句"这活真的能拆吗"</h2>
   <div class="agent-compare">
     <div class="mode fork"><h3>派个替身去干（Fork）</h3><p>主任务带上必要的上下文，分出一个独立子任务，回头收结果。</p><ul><li><b>适合：</b>并行搜索、局部测试、独立审查</li><li><b>好：</b>轻，起得快，和主任务像</li><li><b>代价：</b>要复制上下文，可能抢工具、结果打架、成本上去</li></ul></div>
@@ -657,12 +658,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="q"><b>2. 输出有约定吗？</b><br>该返回结构化的结论、证据、待解决项，不是一段散文。</div>
     <div class="q"><b>3. 挂了能局部恢复吗？</b><br>一个子任务倒了，不该把整盘历史和工具状态一起拖垮。</div>
   </div>
-  <div class="foot"><span>Agent 更多不等于更聪明；并行是要付上下文和协调成本的</span><span>22</span></div>
+  <div class="foot"><span>Agent 更多不等于更聪明；并行是要付上下文和协调成本的</span><span>23</span></div>
 </section>
 
 <!-- ============ 23 补齐顺序 ============ -->
 <section class="slide" data-note="把今天的内容变成行动项，顺序有讲究：先记忆、再权限、再扩展，多 Agent 最后。每一项配一个能验收的标准，别讲完只剩概念。反复强调：先让一个 Agent 做对、做稳、做得可控，再谈并行扩量。">
-  <div class="top"><div class="kicker">落地</div><div class="chapter">23 / 24</div></div>
+  <div class="top"><div class="kicker">落地</div><div class="chapter">24 / 25</div></div>
   <h2>要补能力，该按什么顺序</h2>
   <p class="subtitle">先把"单个 Agent 稳、可信、能进团队系统"的地基打好；多 Agent 是后面的吞吐优化，不是起步该干的。</p>
   <div class="roadmap">
@@ -671,22 +672,22 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="rank">P1</div><div class="work"><b>工具协议、MCP 和 Hook</b><p>统一外部工具接入；把测试、规范、证据收集插到对的节点。</p></div><div class="metric"><b>验收：</b>外部系统能观测、能降级；挂了不会把 Agent 卡死在没解释的状态。</div>
     <div class="rank">P2</div><div class="work"><b>多 Agent 编排</b><p>定义任务图、上下文范围、结果约定和局部重试，验证真有收益。</p></div><div class="metric"><b>验收：</b>并行比串行，在时延、成本、成功率里至少一项有可复现的收益。</div>
   </div>
-  <div class="foot"><span>先让一个 Agent 做对、做稳、做得可控，再谈规模化并行</span><span>23</span></div>
+  <div class="foot"><span>先让一个 Agent 做对、做稳、做得可控，再谈规模化并行</span><span>24</span></div>
 </section>
 
 <!-- ============ 24 结尾 ============ -->
 <section class="slide dark" data-note="回到开场，别用神秘感收尾。强调这四件事一起成立：循环让它动，记忆让它续航，权限让它可信，扩展让它进真实工作流。最后抛个问题给大家讨论，活跃气氛，也顺便收集想法。">
-  <div class="top"><div class="kicker">收尾</div><div class="chapter">24 / 24</div></div>
+  <div class="top"><div class="kicker">收尾</div><div class="chapter">25 / 25</div></div>
   <h1>它厉害的地方，不在某一句神秘的 Prompt</h1>
   <div class="quote">而是把模型放进了一套能<span style="color:#4fb5a9">动手</span>、能<span style="color:#efba4b">续航</span>、能<span style="color:#f19b7c">受控</span>、还能<span style="color:#b8a1de">接上我们自己工具</span>的运行时里。</div>
   <div class="four-keys">
-    <div class="key k1"><b>循环</b><span>做一步、看结果、再决定，能恢复也能停。</span></div>
+    <div class="key k1"><b>循环与配置</b><span>做一步、看结果、再决定，能恢复也能停；配置在开场就一起定好。</span></div>
     <div class="key k2"><b>记忆</b><span>把有限的空间，留给下一步真正要用的东西。</span></div>
     <div class="key k3"><b>权限</b><span>按风险分档，还能说清为什么，换来敢用的自动化。</span></div>
     <div class="key k4"><b>扩展</b><span>在对的节点，把团队的工具和规范接进来。</span></div>
   </div>
   <div class="band" style="margin-top:38px;background:#e5f3ee;color:#172026"><b>留个问题一起聊：</b>如果下个季度只能补一样，你觉得哪样最能同时提高成功率、少人工介入、又不失控？</div>
-  <div class="foot"><span>谢谢，欢迎拍砖</span><span>24</span></div>
+  <div class="foot"><span>谢谢，欢迎拍砖</span><span>25</span></div>
 </section>
 
 </main>
