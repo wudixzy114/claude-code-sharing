@@ -360,6 +360,12 @@ button{font:inherit}
 .matrix .yes{color:var(--teal);font-weight:700}
 .matrix .no{color:var(--red);font-weight:700}
 .matrix code{font-family:"SF Mono",Consolas,monospace;font-size:15px;background:#eef2ef;padding:1px 6px;border-radius:4px}
+.matrix td.cost-hi,.matrix td.cost-mid,.matrix td.cost-lo,.matrix td.cost-zero{font-weight:700;text-align:center;background:#fff}
+.matrix td.cost-hi{color:var(--red)}
+.matrix td.cost-mid{color:var(--orange)}
+.matrix td.cost-lo{color:var(--teal)}
+.matrix td.cost-zero{color:var(--teal)}
+.matrix td.cost-hi span,.matrix td.cost-mid span,.matrix td.cost-lo span,.matrix td.cost-zero span{display:block;font-weight:400;font-size:12px;color:var(--muted);margin-top:2px}
 
 /* ---------- dense layouts: keep full slide content above the fixed footer ---------- */
 .slide-14-density .top,.slide-19-density .top,.slide-31-density .top{margin-bottom:16px}

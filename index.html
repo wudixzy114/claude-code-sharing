@@ -28,7 +28,7 @@
 
 <!-- ============ 01 五层架构地图 ============ -->
 <section class="slide" data-note="开场先给整体地图，回答审核最想问的：这套东西到底分几层、每层干嘛。核心一句先抛出：模型只会生成下一步说啥、调哪个工具，真把事办了、管好状态权限的是外面这五层 runtime。逆向材料里是明确的五层（1.4 节）：Layer5 入口分发 cli.tsx，支持 10+ 运行模式；Layer4 交互渲染，React+Ink 把过程画到终端；Layer3 编排层就是那个 while(true) 循环，源码里叫 QueryEngine，约 46KB 的 God Object，用 AsyncGenerator 一轮轮吐；Layer2 能力层 tools.ts/commands.ts/skills；Layer1 基础设施，API 客户端、全局状态 state.ts（60+ 字段）、MCP 通信、持久化。最该记住的工程约束：state.ts 必须是依赖图的叶子节点，被 200+ 文件导入，用 ESLint 规则 bootstrap-isolation 强制——这就是为什么它能稳。这张图后面每一章都回来定位。数字均为逆向材料所述，随版本变。">
-  <div class="top"><div class="kicker">一、架构总览</div><div class="chapter">01 / 40</div></div>
+  <div class="top"><div class="kicker">一、架构总览</div><div class="chapter">01 / 48</div></div>
   <h2>整体分五层：模型只出主意，runtime 才真把事办了</h2>
   <p class="subtitle">别把 Claude Code 想成一个更大的 Prompt。模型只生成「下一步说啥、调哪个工具」；把它变成动作、喂回结果、管好状态和权限的，是外面这<b>五层</b>——你从哪个入口进来走的都是它。</p>
   <div class="larch">
@@ -46,7 +46,7 @@
 <!-- ============ 02 入口统一路由 ============ -->
 <!-- ============ 02 入口路由 + 核心vs插件 ============ -->
 <section class="slide" data-note="这页回答两个架构问题，都是'各部分怎么拼在一起'。上半：入口怎么统一路由。逆向材料 2.6 节叫入口适配器矩阵——REPL/MCP/SDK/Bridge 五种入口共享同一套工具注册表和执行引擎，核心引擎对入口类型无感知，只在传输层、权限、状态三个维度用适配器注入不同策略：REPL 走 stdin/stdout、用户确认对话、完整 React 状态树；MCP 走 stdio、空权限上下文 getEmptyToolPermissionContext、无状态 LRU；SDK 走 spawn+structuredIO、SDK 控制协议、外部控制状态；Bridge 走 WebSocket/SSE、远程权限桥接、远程同步。一句话：不管从哪进，最后都汇到同一个 QueryEngine。下半：核心 vs 插件，按信任级别分轨（材料行1586/21250）。别把所有扩展想成一回事。核心（完全信任）：40+ 内置工具和命令，编译进主进程、中心化注册在 tools.ts——注意不是自动发现，因为工具 description 本身是 Prompt 的一部分，必须精确控制。往下信任递减、隔离递增：Plugin 中信任、主进程+策略过滤；MCP 低信任、进程级隔离、运行时动态注册到同一张表；Skill 高信任但纯 Prompt、根本不执行代码、只是 System Prompt 的一段；Hook 是事件总线，27 个生命周期节点，用 \\0 复合键做命名空间隔离。结论：工具/命令编译进核心，MCP/Plugin/Skill/外部 Hook 是运行时动态接入。数字取自逆向材料，随版本变。">
-  <div class="top"><div class="kicker">一、架构总览</div><div class="chapter">02 / 40</div></div>
+  <div class="top"><div class="kicker">一、架构总览</div><div class="chapter">02 / 48</div></div>
   <h2>五个入口怎么汇到一套核心？谁是核心、谁是插件？</h2>
   <p class="subtitle">上半：不管你从哪个入口进，最后都汇到<b>同一个 QueryEngine</b>——靠的是「入口适配器矩阵」。下半：接进来的东西<b>按信任级别分轨</b>，别把它们当成一回事。</p>
   <div class="grid two" style="margin-top:12px;align-items:start;gap:26px">
@@ -78,7 +78,7 @@
 
 <!-- ============ 03 启动速度 + 渲染质量 ============ -->
 <section class="slide" data-note="这页回答两个很实的工程问题：这么大一坨（数十万行 TS），启动为什么不慢？终端里那些流式输出、diff 为什么不卡不花屏？上半启动：材料 2.2 节叫分层启动路由器，核心思想是把'加载开销正比于所有模式的代码总量'改成'正比于你这次真正用到的模式'。四级：L0 环境预处理约 1ms、0 模块；L1 零依赖快速路径，claude --version 直接读 package.json 约 5ms、0 模块；L2 功能分流，MCP/Bridge/Daemon 这些按需动态导入，约 20-50ms、1-3 模块；L3 完整 CLI 约 100-200ms，才动态导入 main.tsx。再加两招：构建时 Feature Flag，用 Bun 的 feature() 把开关内联成布尔常量，没启用的代码直接从产物里消除；L3 并行化启动，把 MDM 读取、Keychain 预取这些 I/O 和模块导入的 CPU 活儿重叠起来。下半渲染：基于 Ink 的 React-to-Terminal 六阶段管线（React Reconciler → DOM 抽象 → Yoga Flexbox 布局 → Screen Buffer 用 TypedArray 位打包 → Diff 引擎 → ANSI 输出）。保质量靠三招：双缓冲 frontFrame/backFrame 只输出差异；Blit 优化，没变的节点直接 TypedArray 内存拷贝，典型会话 90% 以上屏幕是零成本复制；帧合并 throttle 到约 16ms、~60fps。落脚：启动快 = 只加载你要用的；渲染稳 = 只重画变了的。数字取自逆向材料，随版本变。">
-  <div class="top"><div class="kicker">一、架构总览</div><div class="chapter">03 / 40</div></div>
+  <div class="top"><div class="kicker">一、架构总览</div><div class="chapter">03 / 48</div></div>
   <h2>这么大一坨，凭什么启动不慢、终端不卡？</h2>
   <p class="subtitle">数十万行 TypeScript，却要求秒开、流式输出不花屏。两条工程主线：<b>启动只加载你这次真要用的</b>，<b>渲染只重画变了的</b>。</p>
   <div class="grid two" style="margin-top:10px;align-items:start;gap:26px">
@@ -114,7 +114,7 @@
 
 <!-- ============ 应用 01 架构总览：从任务到责任层 ============ -->
 <section class="slide application-slide" data-note="应用页。用一张五层图处理真实问题：先从症状入手，再顺着任务经过的入口、会话、循环、工具和横向能力定位。这里先固定排布，后续补入团队自己的真实案例与截图。">
-  <div class="top"><div class="kicker">一、架构总览</div><div class="chapter">04 / 40</div></div>
+  <div class="top"><div class="kicker">一、架构总览</div><div class="chapter">04 / 48</div></div>
   <h2>应用：一次任务卡住，先在哪一层找原因？</h2>
   <p class="subtitle">不急着改 Prompt。对着第 01 页那张五层图，从症状定位到具体某一层，才能把问题交给对的地方。</p>
   <div class="grid three" style="margin-top:30px">
@@ -129,7 +129,7 @@
 
 <!-- ============ 02 循环动画（旧 03，主讲保留） ============ -->
 <section class="slide" data-locked="true" data-lock-note="已确认满意。锁定本页的结构、文案和视觉样式；后续排版只允许调整页面顺序。" data-note="第一个专题，也是全场地基。别念字，直接点下一步让它一轮一轮跑。左边高亮当前走到哪，右边消息记录会一条条长出来——这就是它的上下文，越攒越长。跑到测试通过就停。强调：每一轮模型看到的，都是右边这坨不断变长的东西；准备、查权限、收拾结果这些活对你是不可见的。">
-  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">05 / 40</div></div>
+  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">05 / 48</div></div>
   <h2>点一下，看它一轮一轮把活干完</h2>
   <div class="demo loopdemo">
     <div class="ring" id="loopRing">
@@ -155,9 +155,55 @@
 </section>
 
 
+<!-- ============ 源码：queryLoop 主循环 ============ -->
+<section class="slide slide-31-density" data-note="贴源码页。上一页那个可点的 demo 演示了循环一轮一轮走，这页直接看它的真身：query.ts 的 queryLoop。业界做状态机有 XState 可视化状态图、LangGraph 有向图、asyncio TaskGroup，Claude Code 选了最朴素的——async function* + while(true)。逐行读循环体：① maybeCompact 先看要不要压上下文（记忆章讲过的自动压缩就在这触发）；② callModel 问一次模型；③ yield* processResponse 处理流式响应并执行工具——注意是 yield*，把里面 yield 的每个事件透传给外层 for await 的消费者，这就是流式；④ 出错走 attemptRecovery，能恢复就改 state 然后 continue 回循环顶重试，不能恢复就 return 终止；⑤ 还有工具调用没跑完（needsFollowUp）就 turnCount+1、continue 带着结果进下一轮。整个循环靠 continue 继续、return 终止，没有状态枚举、没有转换表、没有事件调度。为什么敢这么朴素？材料的观点：核心组件 LLM 本身就不确定，外面套一个复杂精巧的确定性状态机是自欺，while(true) 最坦诚。另外它是 async function*（生成器）不是返回 Promise——所以调用方能 for await 逐步消费，也让每个子 Agent 持有自己独立的 Generator。代码照抄材料 3.3，简化示意，随版本变。">
+  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">06 / 48</div></div>
+  <h2>贴源码：那个"一轮一轮"的循环长什么样</h2>
+  <p class="subtitle">上一页点着看了循环怎么走，这页看它的真身。业界做状态机有 XState、LangGraph、asyncio TaskGroup 一堆精巧方案——Claude Code 选了最朴素的 <code>while(true)</code>。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <div class="code-cap">源码 <code>query.ts</code> 核心循环（材料 §3.3，简化）</div>
+      <div class="code"><span class="k">async function</span>* queryLoop(state, config, deps) {
+  <span class="k">while</span> (<span class="s">true</span>) {
+    <span class="c">// 1. 需要就先压上下文（记忆章那套自动压缩）</span>
+    state = <span class="k">await</span> maybeCompact(state, config)
+
+    <span class="c">// 2. 问一次模型</span>
+    <span class="k">const</span> response = <span class="k">await</span> deps.callModel(state.messages, config)
+
+    <span class="c">// 3. 处理流式响应 + 执行工具（yield* 透传事件）</span>
+    <span class="k">const</span> result = <span class="k">yield</span>* processResponse(response, state)
+
+    <span class="c">// 4. 出错：能恢复就 continue 重试，否则 return 终止</span>
+    <span class="k">if</span> (result.error) {
+      <span class="k">const</span> recovery = attemptRecovery(result.error, state)
+      <span class="k">if</span> (recovery) { state = {...state, ...recovery}; <span class="k">continue</span> }
+      <span class="k">return</span> { reason: <span class="s">'error'</span>, error: result.error }
+    }
+
+    <span class="c">// 5. 还有工具没跑完 → 带着结果进下一轮</span>
+    <span class="k">if</span> (result.needsFollowUp) {
+      state = {...state, turnCount: state.turnCount + 1}
+      <span class="k">continue</span>
+    }
+    <span class="c">// ...都没有 → 循环自然结束</span>
+  }
+}</div>
+    </div>
+    <div>
+      <div class="band" style="margin-bottom:12px"><b>就一个 <code>while(true)</code>：</b><code>continue</code> 继续下一轮、<code>return</code> 终止。没有状态枚举、没有转换表、没有事件调度——想知道"为什么走到这"，看 state 里的字段就行。</div>
+      <div class="code-cap">两个不起眼但关键的写法</div>
+      <div class="band orange-band" style="margin-top:8px"><b>① <code>async function*</code>（生成器），不是返回 Promise。</b>所以调用方能 <code>for await</code> 逐步消费——这就是你看到的<b>流式输出</b>；每个子 Agent 也能各持一个独立 Generator。<br><br><b>② <code>yield* processResponse</code>：</b>把内部 <code>yield</code> 的每个事件<b>透传</b>给外层消费者，边跑工具边往外吐。</div>
+      <div class="hint" style="margin-top:12px"><b>为什么敢这么朴素？</b>材料的观点：核心组件 LLM 本身就不确定，外面再套一个精巧的确定性状态机是自欺——<code>while(true)</code> 最坦诚，读代码的人一眼就知道"这循环会一直转，直到明确停"。</div>
+    </div>
+  </div>
+  <div class="foot"><span>最核心的调度就是一个 while(true)：continue 继续、return 终止；async function* 带来流式与子 Agent 独立消费（源码取自逆向材料，随版本变）</span><span>06</span></div>
+</section>
+
+
 <!-- ============ 05 配置文件（原记忆章，前移） ============ -->
 <section class="slide" data-note="接着讲配置——它和循环一样，是启动就定下的宏观设置，所以放在这一章。直接回答审核问的：配置文件读哪些？优先级什么？按什么顺序覆盖？加载后锁定还是运行时能改？分两张表。左边 settings.json 的五级优先级，高到低：企业 managed、命令行参数、项目本地 settings.local.json、项目共享 settings.json、用户 ~/.claude。强调一点：权限规则是合并不是覆盖。右边讲生效方式：大多数实时热更新（权限、hook 改完就生效），例外是 model 和 outputStyle 要重启。再顺带把 CLAUDE.md 那四层放上来。落脚：别把该热更新的当成要重启，也别以为高优先级会把低优先级整个盖掉。">
-  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">06 / 40</div></div>
+  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">07 / 48</div></div>
   <h2>配置读哪些、谁盖谁、改完要不要重启？</h2>
   <p class="subtitle">这几个问题最容易踩坑：同一条规则在不同项目表现不一样，多半是优先级和"合并还是覆盖"没搞清。</p>
   <div class="grid two" style="margin-top:14px">
@@ -190,13 +236,13 @@
       </table>
     </div>
   </div>
-  <div class="foot"><span>不确定当前生效的是哪条，用 /permissions、/context 看真实结果</span><span>06</span></div>
+  <div class="foot"><span>不确定当前生效的是哪条，用 /permissions、/context 看真实结果</span><span>07</span></div>
 </section>
 
 
 <!-- ============ 06 指令：分层 + 按路径条件生效 ============ -->
 <section class="slide" data-note="这页接着上一页的配置文件讲，回答一个很实的问题：项目指令除了分层，还能不能'只在改某类文件时才生效'？能——这就是 .claude/rules 条件规则，很多人没用过。别把项目规矩写成一大段永远在场的长 Prompt，那样既费上下文、模型遵循度还下降。CLAUDE.md 是无条件加载（四层覆盖链：企业 /etc/claude-code → 用户 ~/.claude → 项目 repo 根和 .claude → 条件规则 .claude/rules → 私有 CLAUDE.local.md）。而 .claude/rules/*.md 是条件规则：frontmatter 里写 paths（源码内部字段叫 globs），只有当 glob 匹配到当前在改的文件时，这条规则才注入。举例：前端组件规范只在改 src/components 下的 tsx 时才进上下文，改后端时根本不占位。这是'最小权限原则'搬到 Prompt 工程，尤其适合 monorepo 前后端分治。再提一句 @import：CLAUDE.md 里能用 @./path 引另一个文件，有防循环、限深度 5、符号链接安全三重防护。落脚：会变的进度别塞永久指令，放会话摘要；跟文件强相关的规矩用 rules+paths 按需触发。字段名和路径取自逆向材料，随版本变。">
-  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">07 / 40</div></div>
+  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">08 / 48</div></div>
   <h2>项目指令：不只分层，还能「改到某类文件才生效」</h2>
   <p class="subtitle">承接上一页的配置文件——指令也一样有层级，而且比配置多一招：<code>.claude/rules/</code> 条件规则，能让某条规矩<b>只在你动某类文件时</b>才进上下文。很多人没用过这个。</p>
   <div class="grid two" style="margin-top:12px;align-items:start;gap:26px">
@@ -224,13 +270,13 @@ hooks 必须以 use 前缀命名。</div>
       <div class="band orange-band" style="margin-top:12px"><b>只在改 <code>src/components</code> 下的文件时，这条规矩才进上下文</b>；改后端时它根本不占位。这就是「最小权限」搬到 Prompt——尤其适合 monorepo 前后端分治，省窗口、也少让模型分心。</div>
     </div>
   </div>
-  <div class="foot"><span>会变的进度放会话摘要，别塞永久指令；跟文件强相关的规矩用 rules + paths 按需触发（字段名取自逆向材料，随版本变）</span><span>07</span></div>
+  <div class="foot"><span>会变的进度放会话摘要，别塞永久指令；跟文件强相关的规矩用 rules + paths 按需触发（字段名取自逆向材料，随版本变）</span><span>08</span></div>
 </section>
 
 
 <!-- ============ 应用页 · 二、循环与配置 ============ -->
 <section class="slide application-slide" data-note="应用页——按审核要求，给真配置样例和真命令，不再只给文字卡。左边一份可直接抄的 .claude/settings.json：model、permissions、hooks 三块最常用，注意 model 改完要重启、权限和 hook 热更新。右边给能当场敲的命令：Shift+Tab 切模式、/config 核对生效值、/memory 浏览编辑各层 CLAUDE.md 并挑作用域、--permission-mode 启动参数。落脚：配置分层写、按生效方式记住哪些要重启。这些样例字段随版本会变，以 /config 实际显示为准。">
-  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">08 / 40</div></div>
+  <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">09 / 48</div></div>
   <h2>应用：把规矩写进配置文件（给你可抄的样例）</h2>
   <p class="subtitle">讲完循环、配置、条件规则，落到手上：一份能直接抄的 <code>.claude/settings.json</code>，加几条当场能敲的命令。</p>
   <div class="grid two" style="margin-top:12px;align-items:start;gap:26px">
@@ -263,12 +309,12 @@ hooks 必须以 use 前缀命名。</div>
       <div class="band purple-band" style="margin-top:14px"><b>本节落地：</b>配置<b>分层写</b>（managed / 项目 / 个人），按<b>生效方式</b>记住哪些热更新、哪些要重启（<code>model</code>、<code>outputStyle</code> 要新会话）。</div>
     </div>
   </div>
-  <div class="foot"><span>应用页 · 循环与配置 · 样例字段随版本会变，以 /config 实际显示为准</span><span>08</span></div>
+  <div class="foot"><span>应用页 · 循环与配置 · 样例字段随版本会变，以 /config 实际显示为准</span><span>09</span></div>
 </section>
 
 <!-- ============ 07 上下文里装了啥（budget demo） ============ -->
 <section class="slide" data-locked="true" data-lock-note="已确认满意。锁定本页的结构、文案和视觉样式；后续排版只允许调整页面顺序。" data-note="第二专题，回答凭什么能一直聊。先破误解：它不是靠无限大的窗口，是把有限窗口当资源调度。点填充，看六块各占多少。这里不再只分看得见和看不见，而是按来源与进入时机区分：启动注入、对话产生、运行时回填、输出预留。重点看橙色工具结果，它是运行中动态回填、也最容易失控的一块。百分比是实测示例，随版本和项目会变，现场可 /context 查。">
-  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">09 / 40</div></div>
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">10 / 48</div></div>
   <h2>上下文窗口里装了什么</h2>
   <p class="subtitle">以 20 万 token 的窗口为例，点一下按进入顺序填充：启动注入的固定开销、对话产生的内容、运行时回填的工具结果。</p>
   <div class="budgetdemo">
@@ -296,13 +342,13 @@ hooks 必须以 use 前缀命名。</div>
     </div>
   </div>
   <div class="demo-bar" style="margin-top:14px"><button class="demo-btn" id="budgetPlay">填充看看 ▶</button><button class="demo-btn ghost" id="budgetReset">重来</button><span class="demo-status" id="budgetStatus">点一下，按进入顺序区分启动注入、对话产生和动态回填</span></div>
-  <div class="foot"><span>token 量级与百分比均为实测示例（部分取自官方文档示意值），随版本 / 项目 / 接入的 MCP 会变；现场可用 /context 查实际占用</span><span>09</span></div>
+  <div class="foot"><span>token 量级与百分比均为实测示例（部分取自官方文档示意值），随版本 / 项目 / 接入的 MCP 会变；现场可用 /context 查实际占用</span><span>10</span></div>
 </section>
 
 
 <!-- ============ 07 注入机制（NEW） ============ -->
 <section class="slide" data-locked="true" data-lock-note="已确认满意。锁定本页的结构、文案和视觉样式；后续排版只允许调整页面顺序。" data-note="这页回答一轮上下文到底怎么拼出来的，重点讲你看不见的隐式注入。分两段隐式 + 一段显式。第一段启动前缀：系统提示词和内置工具 schema 先进，然后 CLAUDE.md 按目录树从根到工作目录逐层拼接——企业策略、~/.claude、项目根、当前目录，同级里 CLAUDE.local.md 排在 CLAUDE.md 之后。关键一句：这些文件全部拼接进去，谁也不覆盖谁，越靠近工作目录的排越后、最后读到；而且 CLAUDE.md 是作为系统提示词之后的一条 user 消息注入的，你在终端里根本看不到。子目录 CLAUDE.md、带 paths 的规则、Skill 正文、MCP 完整 schema 都留到运行时按需加载。中间那段人显式发起的一笔带过。收尾强调：隐式注入占了一大半，人真正手输的只有中间一段。">
-  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">10 / 40</div></div>
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">11 / 48</div></div>
   <h2>一轮上下文，是按什么顺序组装起来的？</h2>
   <p class="subtitle">大部分内容是你看不见的「隐式注入」：启动前缀 + 运行时按需。你真正手输的，只有中间那一小段。</p>
   <div class="inject-flow" style="margin-top:16px">
@@ -343,13 +389,13 @@ hooks 必须以 use 前缀命名。</div>
     </div>
   </div>
   <div class="band purple-band inject-note"><b>一句话记住：</b>01 和 03 两段隐式内容，终端里几乎都看不到，却占了上下文一大半；人真正手输的只有中间 02 那一小段。想省上下文，先盯住隐式这两段。</div>
-  <div class="foot"><span>CLAUDE.md 走「拼接」不走「覆盖」；子目录规则、Skill 正文、完整工具 schema 尽量留在运行时按需阶段</span><span>10</span></div>
+  <div class="foot"><span>CLAUDE.md 走「拼接」不走「覆盖」；子目录规则、Skill 正文、完整工具 schema 尽量留在运行时按需阶段</span><span>11</span></div>
 </section>
 
 
 <!-- ============ 08 工具输出防爆炸（NEW） ============ -->
 <section class="slide" data-locked="true" data-lock-note="已确认满意。锁定本页的结构、文案和视觉样式；后续排版只允许调整页面顺序。" data-note="这页只回答一件事：工具结果太长怎么办。先看左边四种情况的处理原则，重点讲太长和太短两行。右边给两个具体例子。太长：一次 grep 命中几百上千行，运行时不会把整坨塞回上下文，而是把完整结果落到一个文件里，只回一条带路径 + 命中数的引用，模型要细看再按路径展开——省下的就是第 07 页那 38%。太短或为空更容易被误判：命令成功但没有输出、或搜索零命中，如果只回一个空字符串，模型会以为工具没跑成，所以运行时会补一句明确信号，比如 exit 0，无输出 或 无匹配（0 处）。把这两种都收拾干净，工具结果这块就不会失控。">
-  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">11 / 40</div></div>
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">12 / 48</div></div>
   <h2>工具结果太长怎么办？</h2>
   <p class="subtitle">第 07 页占用图里橙色 38% 就是这块，最容易膨胀。工具一调完就地整理，别只等后面的压缩兜底。</p>
   <div class="grid two" style="margin-top:16px;grid-template-columns:1.05fr 1fr">
@@ -377,13 +423,13 @@ hooks 必须以 use 前缀命名。</div>
       </div>
     </div>
   </div>
-  <div class="foot"><span>能无限膨胀的只有工具结果这一块；把它管住，窗口就稳了一大半</span><span>11</span></div>
+  <div class="foot"><span>能无限膨胀的只有工具结果这一块；把它管住，窗口就稳了一大半</span><span>12</span></div>
 </section>
 
 
 <!-- ============ 09 压缩机制动画（全场重点） ============ -->
 <section class="slide" data-locked="true" data-lock-note="已确认满意。已修正布局与动态滚动；锁定本页的结构、文案和视觉样式，后续排版只允许调整页面顺序。" data-note="全场最重要的一页，慢慢讲。先纠正一个我自己以前的糊涂说法：不是笼统的四层，源码里其实是两类压法 + 一个触发器。左边：第一类微压缩 microcompact，就地把旧工具结果去重、截断、换引用（限 Read/Bash/Grep 等几类工具的结果），全程本地、不调模型，这是最常发生的；第二类全量压缩 compact，才调一次模型，把旧历史压成摘要 + 打边界 + 保留最近几轮原文 + 回填关键文件，这个较少触发。第三块 autoCompact 不是一种压法，是触发器，盯着有效窗口减 13k 的阈值、时间、以及请求太长被拒（PTL）来决定何时压。手动模式：点压一步，先看微压缩把那块构建日志去重截断换引用（88→52%，不调模型），再点一步升级到全量压缩、调一次模型压成摘要（52→30%，最近一轮原文保留）。讲完手动点看动态压缩，也是手动一步步点：上下文一轮轮涨，autoCompact 越过阈值先做便宜的微压缩、占用回落；又涨、旧结果已被微压过压无可压、仍超限，才升级到全量 LLM 压缩。强调两点：一是大多数时候只做本地微压缩，全量较少触发；二是全量那次是独立模型请求，失败会导致会话继续涨到 Prompt too long——这是我本地日志里真见过的。">
-  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">12 / 40</div></div>
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">13 / 48</div></div>
   <h2>压缩其实是两类做法 + 一个触发器，只有一类调模型</h2>
   <div class="demo compdemo">
     <div class="comp-layers" id="compLayers">
@@ -412,13 +458,39 @@ hooks 必须以 use 前缀命名。</div>
     <button class="demo-btn ghost" id="compReset">重来</button>
     <span class="demo-status" id="compStatus">两类做法：本地微压缩(不调模型) → 不够再升级全量压缩(调一次模型)；autoCompact 只管何时压</span>
   </div>
-  <div class="foot"><span>绿=本地微压缩(不调模型)，黄=全量压缩(调一次模型)，紫=触发器；全量那次模型请求若失败，会话会继续涨到 Prompt too long（占用百分比为实测示例，随版本变）</span><span>12</span></div>
+  <div class="foot"><span>绿=本地微压缩(不调模型)，黄=全量压缩(调一次模型)，紫=触发器；全量那次模型请求若失败，会话会继续涨到 Prompt too long（占用百分比为实测示例，随版本变）</span><span>13</span></div>
+</section>
+
+
+<!-- ============ 压缩其实是五道工序按顺序过 ============ -->
+<section class="slide slide-31-density" data-note="上一页 demo 演的是压缩的两大类做法（本地微压缩 / 全量压缩）加一个触发器，是给观众建直觉的。这页把'一轮里到底按什么顺序动手'摊开——源码里在准备下一轮请求前，上下文要顺序过五道收窄工序（query.ts 附近那段，行号随版本变），从最便宜、最不伤信息的先上，一道不够再上下一道：第一道 budget 削减，先按预算砍掉可省的部分（比如老旧的大工具输出）；第二道 snip，裁剪单条过长的消息/输出；第三道 microcompact 微压缩，本地把一批消息合并简写，不调模型、零 API 成本；第四道 context collapse，把更大范围的历史折叠成更紧凑的表示；第五道才是 auto-compact 全量压缩——真正调一次模型生成摘要，成本最高，放最后。核心设计取舍：便宜的、损失小的排前面，能在前几道解决就不惊动模型；只有前面都不够腾出空间，才升级到调模型的全量压缩。跟上一页的关系要点一句：上一页 demo 把它简化成'本地微压缩→全量'两档好演示，这页是它更细的真实工序展开，微压缩就是这里的第三道、全量就是第五道，不冲突。工序名/行号取自源码，随版本变。">
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">14 / 48</div></div>
+  <h2>压缩不是一下子全压——是五道工序按顺序过</h2>
+  <p class="subtitle">上一页 demo 把压缩简化成"本地微压缩 → 全量"两档，方便看。这页摊开真实顺序：准备下一轮请求前，上下文<b>顺序过五道收窄工序，从最便宜、最不伤信息的先上</b>，一道不够再上下一道。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <div class="code-cap">五道工序（越往下越贵，全量压缩放最后）</div>
+      <div class="code"><span class="c">// 准备下一轮请求前，顺序尝试收窄上下文</span>
+<span class="k">1. budget 削减</span>     <span class="c">按预算砍可省的（老旧大工具输出）</span>
+<span class="k">2. snip</span>           <span class="c">裁剪单条过长的消息/输出</span>
+<span class="k">3. microcompact</span>   <span class="c">本地合并简写一批消息 · 不调模型</span>
+<span class="k">4. context collapse</span> <span class="c">更大范围历史折叠成紧凑表示</span>
+<span class="k">5. auto-compact</span>   <span class="c">调一次模型生成摘要 · 成本最高</span></div>
+      <div class="hint" style="margin-top:10px">前四道都不调模型（或代价很低），能在这几步腾出空间就不惊动模型；只有都不够，才升级到第五道那次真正的模型请求。</div>
+    </div>
+    <div>
+      <div class="band" style="margin-bottom:12px"><b>为什么排这个序？</b>越靠前越便宜、对信息的损伤越小。先扔明显能省的（老工具输出），再裁过长单条，再本地合并，再折叠，实在不行才花一次模型调用做全量摘要。<b>能省的先省，动模型的放最后。</b></div>
+      <div class="band orange-band"><b>和上一页什么关系？</b>上一页 demo 里的"本地微压缩"就是这里的<b>第 3 道</b>，"全量压缩"就是这里的<b>第 5 道</b>——demo 为了好演示只留了这两档，这页是它更细的真实展开，不矛盾。</div>
+      <div class="band red-band" style="margin-top:12px"><b>接回上一页那个坑：</b>第 5 道那次模型请求要是失败了（日志里 <code>summarization returned API error</code>），空间没腾出来，会话就继续涨，直到下次输入直接 <code>Prompt too long</code>。所以长任务别全等它自动。</div>
+    </div>
+  </div>
+  <div class="foot"><span>一轮里顺序过 budget→snip→microcompact→collapse→auto-compact 五道，便宜的先上、调模型的全量放最后（工序名/行号取自源码，随版本变）</span><span>14</span></div>
 </section>
 
 
 <!-- ============ 10 质量会不会掉 + 实操 ============ -->
 <section class="slide" data-note="这页回答两个使用者最关心的问题：聊太长会不会变差？我能怎么手动管？先说结论：会——官方明说很长的对话里早期指令可能被丢。触发点：接近有效窗口时自动压缩。用真实日志讲：effectiveWindow=180000 这条线、Reactive compact、summarization returned API error——那次压缩请求失败了，会话就继续涨，直到下一次输入报 Prompt too long。所以别全交给它自动。给四条能当场用的命令。落地建议：重要结论直接说「记进 CLAUDE.md」（或用 /memory 挑作用域），长任务里主动 /compact 带关注点，比等它自动压更准。">
-  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">13 / 40</div></div>
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">15 / 48</div></div>
   <h2>聊太长会变差吗？会。那我能怎么管？</h2>
   <p class="subtitle">上下文接近有效窗口就会自动压缩，压缩就有可能丢细节。别全交给它自动，手上这几条命令要会用。</p>
   <div class="grid two" style="margin-top:16px">
@@ -452,13 +524,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band purple-band" style="margin-top:12px"><b>落地建议：</b>长任务别指望它自动记住关键结论。重要的<b>直接说「记进 CLAUDE.md」</b>，或用 <code>/memory</code> 挑作用域写；快到上限时优先手动 <code>/compact</code> 并带上关注点。</div>
     </div>
   </div>
-  <div class="foot"><span>你手动介入的那几下，往往比它自动压得更准</span><span>13</span></div>
+  <div class="foot"><span>你手动介入的那几下，往往比它自动压得更准</span><span>15</span></div>
 </section>
 
 
 <!-- ============ 14 记忆有几种·存哪 ============ -->
 <section class="slide slide-14-density" data-note="新增记忆页（审核点名的大缺口：记忆＝持久化）。开场先破一个误解：记忆不只有一个 CLAUDE.md。列清楚到底有几种、各存在哪、谁写的、跨会话还在不在、什么时候载入。左边一张对照表五行：①CLAUDE.md 指令记忆——你手写、进文件、每次启动拼进系统提示（分层细节第7页已讲）；②说人话 / /memory——直接说「记进 CLAUDE.md」它就写，或用 /memory 打开各层 CLAUDE.md 自己挑作用域；③会话记忆 Session Memory——后台模型自动生成 summary.md，压缩/续接时用；④自动记忆 AutoMem / 团队记忆 TeamMem——memory 目录里自动生成的文件，作为动态「记忆」段注入，有 40000 字上限；⑤Agent/Scoped 记忆——.claude/agent-memory 下 user/project/local 三档，子代理跨会话攒，project 档还能进 git 团队共享。右边给一个真实的自动记忆目录长相：MEMORY.md 只是索引，真正内容在一个个带 frontmatter 的 .md 文件里，按 type 分 user/feedback/project/reference。收尾一句：你能直接管的是 CLAUDE.md（手写或让它帮你写），其余大多是它自己攒的。资料边界要讲清：Session/Agent/AutoMem 出自逆向材料；/memory 和 MEMORY.md 自动记忆以本机实际运行为准。注意：老版本那个「输入 # 一句话弹三选一写进 CLAUDE.md」的快捷命令，当前版本官方文档里已经没有了，别再讲，改成说人话或 /memory。">
-  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">14 / 40</div></div>
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">16 / 48</div></div>
   <h2>记忆不只一个 CLAUDE.md——到底有几种、存哪</h2>
   <p class="subtitle">「记忆」就是把东西持久化，下次开会话还在。它其实有好几路：有你手写的，有它自己在后台攒的。先分清谁是谁。</p>
   <div class="grid two" style="margin-top:12px;align-items:start;gap:24px">
@@ -491,13 +563,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint" style="margin-top:10px"><b>分 type：</b>user（他是谁）/ feedback（怎么配合）/ project（在忙啥）/ reference（东西在哪）。索引常驻上下文，正文按相关性才读。</div>
     </div>
   </div>
-  <div class="foot"><span>Session/Agent/AutoMem 取自逆向材料；<code>/memory</code> 与 MEMORY.md 自动记忆以本机实际运行为准，随版本变</span><span>14</span></div>
+  <div class="foot"><span>Session/Agent/AutoMem 取自逆向材料；<code>/memory</code> 与 MEMORY.md 自动记忆以本机实际运行为准，随版本变</span><span>16</span></div>
 </section>
 
 
 <!-- ============ 15 会话记忆怎么自动记 ============ -->
 <section class="slide" data-note="第二张记忆页，回答审核的两个细问：它怎么自己记笔记？能写多少、什么时候载入？左边讲会话记忆的自动生成机制——双阈值触发：首次到 10000 tokens 才开抽取，之后每涨 5000 tokens 且有 ≥3 次工具调用再更新一次（或某轮没调工具、到了自然断点也触发）。触发后不是主线程停下来写，而是 fork 一个后台子代理去抽，且用最小权限锁死——它只能编辑那一个 summary.md 文件，别的都动不了。压缩时主线程会等这个抽取，最多等 15 秒。右边讲容量与信任边界这个反直觉点：自动记忆 AutoMem/TeamMem 有 40000 字硬上限，但你亲手写的 CLAUDE.md 不设限——因为机器生成的内容不完全可信，要防它把窗口撑爆；你手写的默认信任。再给会话记忆的量级：约 9 段、总量级 6000–10000 tokens。数字随版本变，讲的是量级和设计取舍，不是精确值。">
-  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">15 / 40</div></div>
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">17 / 48</div></div>
   <h2>会话记忆：它怎么自己记笔记，能写多少</h2>
   <p class="subtitle">上一页那条 <code>summary.md</code>，是它在后台自动帮你记的。什么时候记、谁来记、能写多大——这三件事都有讲究。</p>
   <div class="grid two" style="margin-top:14px;align-items:start;gap:26px">
@@ -522,13 +594,48 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:14px"><b>一句话记住这条取舍：</b>同样是记忆，<b>你亲手写的不限量、机器自动攒的卡上限</b>——限制卡在「谁写的、可不可信」这条线上。</div>
     </div>
   </div>
-  <div class="foot"><span>阈值 10000 / 5000+3、上限 40000 字、超时 15s 均取自逆向材料，讲的是量级与设计取舍，随版本变</span><span>15</span></div>
+  <div class="foot"><span>阈值 10000 / 5000+3、上限 40000 字、超时 15s 均取自逆向材料，讲的是量级与设计取舍，随版本变</span><span>17</span></div>
+</section>
+
+
+<!-- ============ 会话存在哪、断了怎么接回来 ============ -->
+<section class="slide slide-31-density" data-note="前面讲了记忆有几种、能写多少。这页回答一个更底层的问题：整段对话本身存在哪、格式是什么、断了怎么恢复。三件事。第一，存在哪：会话以 append-only（只追加、不改旧的）的 JSONL 落盘，每条消息一行 JSON，带自己的 UUID 和指向上一条的 parentUuid——所以整个会话不是一条直线，而是一棵树（一个 DAG），因为你中途编辑重发、分叉子代理都会产生分支。另外历史命令写 ~/.claude/history.jsonl，大段粘贴内容单独存 paste-cache/（超过 1024 字节才落盘，用内容 SHA256 前 16 位做文件名去重）。第二，怎么安全写：immediateFlushHistory 先对文件加锁 lock(stale:10000, retries 3 次 minTimeout 50ms)，再 appendFile 追加，文件权限 0o600（只有自己能读写）；平时批量攒着 pendingEntries，进程退出时 registerCleanup 兜底把没落盘的强制刷完——保证不丢。第三，断了怎么接回来：conversationRecovery 的 loadMessagesFromJsonlPath 四步——1 全量加载、按 UUID 建索引；2 找叶子节点（没有别的消息把它当 parent 的，就是分支末梢）；3 在叶子里挑最新的、非 sidechain（非子代理旁支）的那个当恢复点；4 顺着 parentUuid 往回一路回溯，把这条链重建出来。跟 Git 从某个 commit 往上追溯父提交是一模一样的思路。文件名、参数照抄逆向材料，随版本变。">
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">18 / 48</div></div>
+  <h2>整段对话存哪、断了怎么原样接回来</h2>
+  <p class="subtitle">前面讲了记忆有几种。这页往下一层：<b>对话本身</b>怎么落盘、怎么保证不丢、断电重开怎么把你上次那条线一模一样接回来。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <div class="code-cap">① 存成一棵树，不是一条直线</div>
+      <div class="code"><span class="c">// 每条消息一行 JSON（append-only 只追加）</span>
+{ <span class="k">uuid</span>: <span class="s">"..."</span>, <span class="k">parentUuid</span>: <span class="s">"..."</span>, ... }
+<span class="c">// 编辑重发、分叉子代理 → 产生分支 → 整体是 DAG</span>
+
+<span class="c">// 大段粘贴单独存，超 1024 字节才落盘</span>
+paste-cache/  <span class="c">// 文件名 = 内容 SHA256 前 16 位（去重）</span></div>
+      <div class="code-cap" style="margin-top:12px">② 写盘保证不丢</div>
+      <div class="code"><span class="k">immediateFlushHistory</span>() {
+  <span class="k">lock</span>(path, {stale:10000, retries:{retries:3, minTimeout:50}})
+  <span class="k">appendFile</span>(path, lines, {mode:<span class="s">0o600</span>}) <span class="c">// 只有自己可读写</span>
+}
+<span class="k">registerCleanup</span>(() =&gt; flush pendingEntries) <span class="c">// 退出兜底</span></div>
+    </div>
+    <div>
+      <div class="code-cap">③ 断了怎么接回来（loadMessagesFromJsonlPath）</div>
+      <div class="code"><span class="c">// 1. 全量加载，按 UUID 建索引</span>
+<span class="c">// 2. 找叶子节点：没有别的消息把它当 parent</span>
+<span class="c">// 3. 叶子里挑「最新 + 非 sidechain」那个当恢复点</span>
+<span class="c">// 4. 顺 parentUuid 一路回溯，重建这条链</span></div>
+      <div class="band" style="margin-top:12px"><b>跟 Git 一个思路：</b>从某个末梢 commit 顺着父指针往上追，就还原出完整历史。这里的 parentUuid 就是那根父指针，sidechain 就是子代理拉出去的旁支——恢复时默认走主线，不误接到旁支上。</div>
+      <div class="band orange-band" style="margin-top:12px"><b>为什么值得这么设计：</b>只追加不改旧的，任何一步崩溃，之前写下的都还在；加锁 + 退出兜底刷盘，保证并发和意外退出都不丢；树结构让"编辑重发""分叉"这些分支天然能表达，还能精确恢复到你要的那一条。</div>
+    </div>
+  </div>
+  <div class="foot"><span>JSONL append-only + UUID/parentUuid 成树，加锁 0o600 写盘 + 退出兜底，恢复靠找叶子回溯父指针（文件名/参数取自逆向材料，随版本变）</span><span>18</span></div>
 </section>
 
 
 <!-- ============ 应用页 · 三、上下文与记忆 ============ -->
 <section class="slide application-slide" data-note="应用页（骨架）。应用：上下文快满了，我该怎么手动管？ 先固定排布与小节落点，后续补入团队真实案例、命令与截图。">
-  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">16 / 40</div></div>
+  <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">19 / 48</div></div>
   <h2>应用：上下文快满了，我该怎么手动管？</h2>
   <p class="subtitle">讲完窗口构成、注入、工具输出、压缩原理，落到实操：诊断占用、手动压缩、写进记忆——以及 /compact 背后到底调的哪一类压缩。</p>
   <div class="grid three" style="margin-top:34px">
@@ -537,12 +644,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="card"><div class="label">03 · 关键结论写进记忆</div><p><b>说「记进 CLAUDE.md」/ /memory</b><br>长任务里重要约束别只说一次，直接让它写进 CLAUDE.md（或 <code>/memory</code> 挑作用域），跨会话还在。</p></div>
   </div>
   <div class="band purple-band" style="margin-top:30px"><b>本节落地：</b><code>/compact</code> 背后调的是压缩页里"全量压缩 compact"那一类（一次模型调用）；微压缩是运行时自动做的，你手动碰不到。</div>
-  <div class="foot"><span>应用页 · 上下文与记忆 · 呼应压缩页两类做法</span><span>16</span></div>
+  <div class="foot"><span>应用页 · 上下文与记忆 · 呼应压缩页两类做法</span><span>19</span></div>
 </section>
 
 <!-- ============ 13 权限分档 ============ -->
 <section class="slide" data-note="第三专题。先摆矛盾：老弹窗问你，烦到你直接全放开；不问，又不敢信它。所以权限不是一个 yes/no 弹窗，是按风险分档的策略。强调决策看的不只是这条命令，还有工具类型、路径、目录、项目规则、组织策略一起。下一页会亲手点给大家看，再下一页专门回答换个对话还算不算数。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">17 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">20 / 48</div></div>
   <h2>权限不是弹窗，是按风险分档放行</h2>
   <p class="subtitle">问得太多，你烦了就点"全放开"；问得太少，你又不敢真让它自己跑。出路是把不同风险，放进不同速度的通道——<b>而这四档，正好对应你配置里的三类规则 + 一个模式</b>。</p>
   <div class="permission">
@@ -552,13 +659,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="level auto"><div class="tag">受控的自动档</div><h3>放宽</h3><p>在限定范围和策略下，少问几遍。</p><div class="divider"></div><p class="small">你怎么落到这档：<code>Shift+Tab</code> 切到 <b>auto / acceptEdits</b> 模式（不是规则，是模式）。</p></div>
   </div>
   <div class="band" style="margin-top:26px"><b>它判断时看的不只是这条命令：</b>工具类型、参数、路径、在哪个目录、项目规则、组织策略、当前模式、还有你之前的选择，一起决定。<b>前三档你用规则配，第四档你用模式切</b>——下一页看它到底按什么顺序判。</div>
-  <div class="foot"><span>"允许 npm test"和"允许任意 shell"，是完全两码事的授权</span><span>17</span></div>
+  <div class="foot"><span>"允许 npm test"和"允许任意 shell"，是完全两码事的授权</span><span>20</span></div>
 </section>
 
 
 <!-- ============ 13 决策管线 ============ -->
 <section class="slide" data-note="这页把一条命令从请求到放行/拦住/问你的完整关卡链摊开讲。源码里其实是十来步，我合并成七格，顺序不能乱。开场先抛最反直觉的一条：deny 永远在 allow 前面判——同一条命令既命中 deny 又命中 allow，deny 赢，因为它在管线更靠前。逐格走：①先看有没有被取消；②整条命令撞死 deny 规则，当场拦；③命中 ask 规则，问你——注意这格带锁，连 bypass 模式都盖不过；④交给具体工具自己校验，Bash 会拆子命令、查路径、验 sed，文件工具查路径安全，这里可能直接判死；⑤受保护路径安全检查，.git/.claude 这类，带锁——只有 bypass 模式会放行，其它模式一律不自动放；⑥到这才轮到模式起作用，bypass 在这步直接放；⑦整条命令命中 allow 规则就放，都没命中的灰区，普通模式问你、auto 模式交给分类器。收尾强调那两把锁：带锁的两格，是 bypassPermissions 也拦不住的东西，这解释了下一页为什么说 bypass 不等于无人值守。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">18 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">21 / 48</div></div>
   <h2>一条命令，要过哪几道关</h2>
   <p class="subtitle">源码里是十来步，合并成七格看。顺序是写死的——<b>deny 永远在 allow 前面判</b>，所以同一条命令既能 allow 又能 deny 时，deny 赢。</p>
   <div class="decflow">
@@ -584,13 +691,74 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint" style="margin-top:8px">只读工具(Read/Grep/Glob)走白名单直接跳过判定；写文件走 acceptEdits 快路径——目录内放行、目录外才交给分类器。</div>
     </div>
   </div>
-  <div class="foot"><span>规则先跑完，模型只在盖不住的灰区帮忙理解语义；连错太多次就自动收回自动权</span><span>18</span></div>
+  <div class="foot"><span>规则先跑完，模型只在盖不住的灰区帮忙理解语义；连错太多次就自动收回自动权</span><span>21</span></div>
+</section>
+
+
+<!-- ============ 源码：分区批处理（任务分发）============ -->
+<section class="slide slide-31-density" data-note="贴源码页。模型一轮经常一次吐好几个工具调用（比如同时 Grep 三个文件），这些怎么分发？toolOrchestration.ts 的分区算法就是答案，直接看它怎么切。核心一句：按每个工具的 isConcurrencySafe 标记，把工具列表切成'并行/串行交替'的批次——连续的安全工具合并成一个并发批（Promise.all，上限 10），碰到不安全的（会写文件的）就单独成一个串行批。举材料原例：输入 [Grep, Grep, Edit, Glob, Glob]，切成 [[Grep,Grep],[Edit],[Glob,Glob]]，执行就是 并行 Grep×2 → 串行 Edit → 并行 Glob×2。为什么要延迟收集上下文修改？并发批里几个工具可能都要改对话上下文，但并发执行谁先谁后不定，所以策略是先并发跑完、各自的上下文修改先攒着，批次完成后按工具在原始数组里的顺序统一应用——消除并发竞态。这就是'任务分发'的真身：不是笼统地并行，而是按并发安全性切出交替批次。算法、上限 10、原例都取自材料 4.6.3 / 9.9.2，随版本变。">
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">22 / 48</div></div>
+  <h2>贴源码：一轮多个工具调用，是怎么分发的</h2>
+  <p class="subtitle">模型一轮常常一次要好几个工具（同时 Grep 三个文件很常见）。哪些能一起跑、哪些必须排队？<code>toolOrchestration.ts</code> 的分区算法说了算——按每个工具的<b>并发安全标记</b>切批次。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <div class="code-cap">分区算法（材料 §4.6.3，原例照抄）</div>
+      <div class="code"><span class="c">// 按 isConcurrencySafe 把工具列表切成交替批次</span>
+输入:  [Grep, Grep, Edit, Glob, Glob]
+分区:  [[Grep, Grep], [Edit], [Glob, Glob]]
+执行:  <span class="s">并行</span>(Grep×2) → <span class="k">串行</span>(Edit) → <span class="s">并行</span>(Glob×2)
+
+<span class="c">// 规则：连续的"安全"工具合并成一个并发批</span>
+<span class="c">//       碰到"不安全"(会写文件)的 → 单独串行</span></div>
+      <div class="code" style="margin-top:10px"><span class="c">// 并发批的执行</span>
+<span class="k">await</span> Promise.all(batch.map(runTool))  <span class="c">// 上限 10 并发</span>
+<span class="c">// 上下文修改：先攒着，不立即应用</span>
+applyContextEdits(collected, <span class="s">原始顺序</span>)  <span class="c">// 批完后统一按序</span></div>
+      <div class="hint" style="margin-top:10px"><b>串行批</b>反过来：逐个 <code>runToolUse</code>，上下文修改<b>立即应用</b>。</div>
+    </div>
+    <div>
+      <div class="band" style="margin-bottom:12px"><b>"任务分发"不是笼统地并行</b>，是按<b>并发安全性</b>切出「并行—串行—并行」交替的批次，批次之间按顺序走。只读的搜索类能挤进同一个并发批，会写文件的自己占一格串行。</div>
+      <div class="code-cap">为什么并发批要"延迟收集、按序应用"？</div>
+      <div class="band orange-band" style="margin-top:8px"><b>并发时谁先谁后不定。</b>几个工具可能都要改对话上下文，若各自跑完就立刻改，结果取决于调度顺序 → 竞态。策略是<b>先并发跑完，各自的修改先攒着</b>，批次完成后<b>按它们在原始数组里的顺序</b>统一应用——结果确定，和串行一致。</div>
+      <div class="hint" style="margin-top:12px">上限 10 是给并发批封顶，别一次开几十个把机器/API 打爆。切批依据只有一个布尔标记 <code>isConcurrencySafe</code>——下一页看它默认是什么、为什么。</div>
+    </div>
+  </div>
+  <div class="foot"><span>按并发安全性切交替批次；并发批 Promise.all 上限 10，上下文修改延迟收集按序应用（源码取自逆向材料，随版本变）</span><span>22</span></div>
+</section>
+
+
+<!-- ============ 源码：工具默认值 Fail-Closed ============ -->
+<section class="slide slide-31-density" data-note="贴源码页，接上一页。上一页切批全靠 isConcurrencySafe 这个布尔，那新工具没声明它会怎样？看 buildTool 的默认值 TOOL_DEFAULTS：isConcurrencySafe 默认 false（假设不安全）、isReadOnly 默认 false（假设会写入）、isDestructive 默认 false、checkPermissions 默认 allow。重点是前两个的方向——这是经典 Fail-Closed（安全默认）：开发者定义新工具时忘了声明并发安全性，系统默认它串行执行；忘了声明只读，默认要过权限检查。宁可多弹一次确认、多串行一次，不可漏放一次危险操作。材料给的理由是代价不对称——一次误判'安全'可能导致数据丢失，一次误判'危险'最多让用户多点一次确认按钮。这页把上一页那个决定分发的布尔标记补完：它的默认值本身就是一条安全设计。数字取自材料 4.7.1 / 4.3，随版本变。">
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">23 / 48</div></div>
+  <h2>贴源码：那个决定分发的标记，默认是什么？</h2>
+  <p class="subtitle">上一页切批全看 <code>isConcurrencySafe</code>。可要是写新工具的人<b>忘了声明</b>呢？看 <code>buildTool</code> 的默认值——方向本身就是一条安全设计。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <div class="code-cap">工具默认值（材料 §4.7.1）</div>
+      <div class="code"><span class="k">const</span> TOOL_DEFAULTS = {
+  isEnabled: () =&gt; <span class="s">true</span>,
+  isConcurrencySafe: () =&gt; <span class="s">false</span>,  <span class="c">// 保守：假设不安全</span>
+  isReadOnly: () =&gt; <span class="s">false</span>,        <span class="c">// 保守：假设会写入</span>
+  isDestructive: () =&gt; <span class="s">false</span>,
+  checkPermissions: allow,
+  toAutoClassifierInput: <span class="s">''</span>,
+}</div>
+      <div class="hint" style="margin-top:12px">忘了声明<b>并发安全</b> → 默认<b>串行</b>执行（上一页里自己占一格）。<br>忘了声明<b>只读</b> → 默认<b>要过权限检查</b>。</div>
+    </div>
+    <div>
+      <div class="band" style="margin-bottom:12px"><b>这叫 Fail-Closed（安全默认）：</b>拿不准就往"更安全"的那边倒。宁可<b>多串行一次、多弹一次确认</b>，也不能<b>漏放一次危险操作</b>。</div>
+      <div class="code-cap">为什么不反过来（默认并行、默认只读）？</div>
+      <div class="band orange-band" style="margin-top:8px"><b>代价不对称：</b><br>· 误判"安全" → 可能<b>数据丢失</b>（不可逆）<br>· 误判"危险" → 最多<b>让你多点一次确认</b>（可逆）<br>两害相权，默认往可逆的那边靠。</div>
+      <div class="hint" style="margin-top:12px">连起来看前两页：默认 false 让新工具<b>天生串行、天生要授权</b>；开发者主动声明 <code>isConcurrencySafe: true</code>，它才有资格进上一页的并发批。安全是默认，性能是主动争取来的。</div>
+    </div>
+  </div>
+  <div class="foot"><span>拿不准就往安全倒：默认不并发、默认要授权；因为误判"安全"的代价远大于误判"危险"（源码取自逆向材料，随版本变）</span><span>23</span></div>
 </section>
 
 
 <!-- ============ 14 六种模式对照 ============ -->
 <section class="slide slide-19-density" data-note="这页专门回答：四种（其实六种）模式到底各免问什么，尤其 bypass 是不是真的什么都不用管。先把六种一次摆清楚——CLI 里 Shift+Tab 默认只在 Manual、acceptEdits、Plan 三种间循环，auto 要账号达标才出现，dontAsk 只能用参数进，bypass 要显式开。逐行讲免问什么：Manual 只免只读；acceptEdits 多免文件编辑和常见文件系统命令 mkdir/touch/rm/mv/cp/sed，但仅限工作目录内；Plan 只读、且不改源码；auto 几乎全放但后台有分类器审、还有 3 连 20 累计的熔断降级；dontAsk 只跑预授权的、其余一律拒，连 AskUserQuestion 都拒；bypass 几乎全放。然后是全场这页最想强调的两个反直觉点，放在下面两条框里。第一，bypass 不等于无人值守——它仍会拦四类：显式 ask 规则、组织把 connector 设成 ask 的、MCP 标了需要交互的、以及 rm -rf / 和 ~ 这种熔断（v2.1.208 起连 $() 包起来的也拦）。而且有个反转：受保护路径写入在别的模式都不自动放，偏偏 bypass 放行。第二，acceptEdits 不是自动跑一切，它只自动放编辑类和那几个文件系统命令，其它 Bash 命令、范围外路径、受保护路径照样问你。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">19 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">24 / 48</div></div>
   <h2>四种模式（其实六种），各免问什么</h2>
   <p class="subtitle">Shift+Tab 默认只在前三种间循环；auto 要账号达标才出现，dontAsk 只能用参数进，bypass 要显式开。免问的范围差别很大。</p>
   <table class="matrix modes-matrix">
@@ -606,13 +774,51 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="band red-band"><b>bypass 仍会拦这 4 类：</b>① 显式 <code>ask</code> 规则；② 组织设成 ask 的 connector 工具；③ 标了 <code>requiresUserInteraction</code> 的 MCP 工具；④ <code>rm -rf /</code>、<code>rm -rf ~</code> 熔断（含 <code>$(...)</code> 包裹）。<b>反转：</b>受保护路径写入别的模式都不自动放，偏偏 bypass 放行。</div>
     <div class="band orange-band"><b>acceptEdits 的边界：</b>它只自动放<b>编辑类 + 那几个 fs 命令</b>，且限工作目录内。其它 Bash 命令、范围外路径、写 <code>.git</code>/<code>.claude</code> 这类受保护路径，<b>照样问你</b>。别当成"自动跑一切"。</div>
   </div>
-  <div class="foot"><span>Shift+Tab 切档 · bypass ≠ 无人值守 · acceptEdits ≠ 自动跑一切</span><span>19</span></div>
+  <div class="foot"><span>Shift+Tab 切档 · bypass ≠ 无人值守 · acceptEdits ≠ 自动跑一切</span><span>24</span></div>
+</section>
+
+
+<!-- ============ auto 模式背后的两段式分类器 ============ -->
+<section class="slide slide-31-density" data-note="上一页 auto 模式那行写了'后台分类器审'，这页把这台'审你'的分类器拆开看——它到底怎么决定放不放行。核心函数 classifyYoloActionXml，输入三样：当前的 systemPrompt、到目前为止的对话 transcript、以及待判的 action（就是这次要跑的工具调用）。它分两段跑，是典型的'先便宜快筛、再贵一点细判'：第一段极便宜，max_tokens 只给 64、遇到 </block> 就停，prompt 里明写一句 'Err on the side of blocking'（拿不准就拦），模型只回一个 <block>no</block> 或 <block>yes</block>——回 no 直接放行，成本极低，绝大多数安全操作走这条就结束了；只有回 yes（可疑）才进第二段。第二段给到 max_tokens 4096，让它先 <thinking> 想一遍，再给结构化结论：<block>yes|no</block> + <reason> 说明理由。关键的兜底：如果第二段输出解析失败（格式不对、被截断等），一律按 block 处理——这就是 fail-closed，跟工具默认值那页一个道理，出错就往安全那边倒。返回结构 YoloClassifierResult 带 shouldBlock、reason、可选 thinking、走到第几 stage、usage(token 用量)、durationMs(耗时)。连到用户体验：被拦不是一次性的——auto 模式下 3 连被拦 / 20 次累计被拦，就自动降级回手动弹窗，把方向盘还给你。函数名 stop_sequences 那句英文照抄源码，随版本变。">
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">25 / 48</div></div>
+  <h2>auto 模式那个"后台分类器"，到底怎么审你</h2>
+  <p class="subtitle">上一页 auto 那行写了"后台分类器审"。这页把这台分类器拆开：它<b>先花极少 token 快筛，可疑的才升级细判</b>，而且两处都往"拦"那边倒。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <div class="code-cap">两段式：便宜快筛 → 贵一点的细判</div>
+      <div class="code"><span class="k">classifyYoloActionXml</span>(systemPrompt, transcript, action)
+
+<span class="c">// 第一段：极便宜的快筛</span>
+max_tokens: <span class="s">64</span>
+stop_sequences: [<span class="s">'&lt;/block&gt;'</span>]
+<span class="c">// prompt 明写：Err on the side of blocking（拿不准就拦）</span>
+&lt;block&gt;no&lt;/block&gt;   <span class="c">→ 直接放行，结束</span>
+&lt;block&gt;yes         <span class="c">→ 可疑，进第二段</span>
+
+<span class="c">// 第二段：细判 + 说理由</span>
+max_tokens: <span class="s">4096</span>
+&lt;thinking&gt;…&lt;/thinking&gt;
+&lt;block&gt;yes|no&lt;/block&gt; + &lt;reason&gt;…&lt;/reason&gt;
+<span class="c">// 解析失败 → 一律 block（fail-closed）</span></div>
+    </div>
+    <div>
+      <div class="band" style="margin-bottom:12px"><b>为什么分两段？</b>你在 auto 模式下的绝大多数操作是安全的。第一段用 64 个 token 就把它们放过去，成本几乎为零；只有少数可疑的才值得花 4096 token 去细想。省钱又快。</div>
+      <div class="code-cap">返回结构</div>
+      <div class="code"><span class="k">YoloClassifierResult</span> {
+  shouldBlock, reason,
+  thinking?, stage,   <span class="c">// 走到第几段</span>
+  usage, durationMs   <span class="c">// token 用量 / 耗时</span>
+}</div>
+      <div class="band orange-band" style="margin-top:12px"><b>被拦不是死路：</b>auto 模式下 <b>3 连被拦 / 20 次累计被拦</b>就自动降级回手动弹窗——分类器拿不准的时候，方向盘还给你。这跟"拿不准就拦"是一套思路：<b>出错往安全那边倒</b>，跟 <a href="#" onclick="return false" style="color:inherit">工具默认值 Fail-Closed</a> 那页同一个道理。</div>
+    </div>
+  </div>
+  <div class="foot"><span>快筛 64 token 放行大多数，可疑的才升级 4096 细判；解析失败一律拦；连续被拦自动降级还权（函数/参数取自源码，随版本变）</span><span>25</span></div>
 </section>
 
 
 <!-- ============ 15 规则何时生效 ============ -->
 <section class="slide" data-note="这页回答：我配的规则，读哪些、谁盖谁、什么时候才真生效。左边五级优先级从高到低：企业 managed 谁也改不了、命令行参数、项目 local settings.local.json、项目共享 settings.json、用户 ~/.claude。最关键一句：权限规则是合并不是覆盖——各来源的 allow/ask/deny 全叠加到一起，然后按 deny→ask→allow 判，所以任何一级写了 deny，别的地方都 allow 不回来。右边三个坑：一，合并不覆盖，别以为高优先级会把低优先级整段盖掉；二，工作区信任弹窗——项目 settings.json 里的 allow 规则和 additionalDirectories 属于给能力，必须你先点了信任这个文件夹才生效，没点之前读到但不应用，deny/ask 不受这限制因为它们只做限制；settings.local.json 是你自己的文件一般免信任。三，热更新还是重启：权限和 hook 规则改完即时生效，模式切换用 Shift+Tab 或启动参数。落脚：不确定当前生效哪条，直接 /permissions 看，它会告诉你每条规则来自哪个文件。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">20 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">26 / 48</div></div>
   <h2>我配的规则，谁盖谁、什么时候生效</h2>
   <p class="subtitle">先记一句最容易踩的：权限规则是<b>合并，不是覆盖</b>。各来源的 allow / ask / deny 全叠起来，再按 deny → ask → allow 判。</p>
   <div class="grid two" style="margin-top:14px;align-items:start">
@@ -633,13 +839,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="card"><div class="label">③ 热更新 vs 重启</div><p>权限、hook 规则改完<b>即时生效</b>；模式切换用 <code>Shift+Tab</code> 或启动参数。不确定当前生效哪条，<code>/permissions</code> 看来源。</p></div>
     </div>
   </div>
-  <div class="foot"><span>合并不覆盖 · 项目 allow 要先信任 · deny 恒赢</span><span>20</span></div>
+  <div class="foot"><span>合并不覆盖 · 项目 allow 要先信任 · deny 恒赢</span><span>26</span></div>
 </section>
 
 
 <!-- ============ 16 配置驱动 · 并行判（demo） ============ -->
 <section class="slide" data-note="这是全权限章的互动中心。左边是配置：上排切模式(Manual/acceptEdits/bypass)，下排切 settings.json 规则集(空规则/团队常用)，中间显示当前生效的 allow/ask/deny。右边七条命令，每条一个判定牌。关键玩法：改左边任意一处，右边整列一起实时重算——这就是"并行看所有命令在当前配置下的结局"。现场必点几组对比：①团队规则下，npm test 命中 allow 放行、git push 命中 ask 要问、rm -rf/ 撞 deny 拦。②切到 bypass：大部分变直接放，但 git push 那条 ask 仍然要问(带锁)、rm -rf/ 仍被熔断拦(带锁)——亲眼验证 bypass 不是全放。③重点看两条删除：rm -rf/ 永远拦；但 rm build/output.js 删的是具体文件，空规则+Manual 要问、acceptEdits 因为是工作目录内 fs 命令直接放、bypass 也放——删具体文件到底问不问，取决于模式和范围，不是命令名。④echo \"$(cat .env)\"：看着是无害的 echo，但内联 $(cat .env) 想读密钥，团队 deny 了 Read(.env) 就连这条也拦——引出下一页 Bash 拆解。每张牌点开能看判定链：命中了哪条规则、卡在哪一步。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">21 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">27 / 48</div></div>
   <h2>改一处配置，七条命令的结局一起重算</h2>
   <p class="subtitle">左边切模式、切规则集；右边每条命令实时给出<b>放 / 问 / 拦</b>和理由。点命令牌看它卡在哪一步。</p>
   <div class="demo pjudge">
@@ -665,13 +871,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
   <div class="demo-bar" style="margin-top:12px">
     <span class="demo-status" id="pjStatus">先在"团队常用 + Manual"下看一遍，再切到 bypass 看哪几条<b>仍然拦着</b></span>
   </div>
-  <div class="foot"><span>规则和模式一起算：同一条命令，换个配置就是另一个结局（判定为实测示例，随版本变）</span><span>21</span></div>
+  <div class="foot"><span>规则和模式一起算：同一条命令，换个配置就是另一个结局（判定为实测示例，随版本变）</span><span>27</span></div>
 </section>
 
 
 <!-- ============ 17 Bash 命令怎么被拆开判 ============ -->
 <section class="slide" data-note="上页那条 echo $(cat .env) 为什么会被拦？这页拆给大家看：Bash 命令不是拿整行去撞规则，是先做一串静态校验再逐段匹配。讲四件事。第一，剥壳：timeout/time/nice/nohup/xargs 这些包装前缀会被先剥掉，拿里面真正的命令去判——所以你别想用 timeout rm -rf / 绕过。第二，拆复合：&&、||、|、; 、以及 $(...) <(...) 命令替换，都会被拆成一个个子命令，每一段都要单独过规则，任何一段不过整条就不过——这就是 echo $(cat .env) 被拦的原因，echo 本身无害，但内联的 cat .env 命中了 deny Read(.env)。第三，只读内建直接放：ls cat echo pwd head tail grep find wc which diff stat 这些加只读的 git，不用问——但注意，一旦和危险段复合就不算数了。第四，通配符匹配讲边界：allow Bash(ls:*) 的 :* 是前缀，ls -la 能命中；但 Bash(ls) 不带 :* 只精确匹配 ls 一条；还有 Read/Edit 的 deny 会顺带盖住 cat/head/tail/sed 这些等价读法。收尾一句：绕过的花招基本都被这套拆解堵掉了。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">22 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">28 / 48</div></div>
   <h2>一条 Bash 命令，是被拆开来判的</h2>
   <p class="subtitle">上页 <code>echo "$(cat .env)"</code> 为什么被拦？因为 Bash 不拿整行撞规则——先剥壳、再拆成子命令，<b>每一段都要单独过</b>，一段不过整条不过。</p>
   <div class="grid two" style="margin-top:14px;align-items:start">
@@ -692,13 +898,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
     </div>
   </div>
   <div class="band red-band" style="margin-top:16px"><b>一句话：</b>常见的绕过花招（换个包装、藏进管道、用等价读法），基本都被这套"剥壳 + 拆段 + 逐段过"堵住了。</div>
-  <div class="foot"><span>把整行拆成一段段单独判，是 Bash 权限最容易被误解、也最关键的一环</span><span>22</span></div>
+  <div class="foot"><span>把整行拆成一段段单独判，是 Bash 权限最容易被误解、也最关键的一环</span><span>28</span></div>
 </section>
 
 
 <!-- ============ 18 删除与路径怎么判 ============ -->
 <section class="slide" data-note="专门回答那个具体问题：rm -rf / 明显该拦，但删一个具体文件到底怎么判？这页把"删除"和"路径"两件事讲透。上半：删除分三档。第一档，rm -rf / 和 rm -rf ~ 是硬熔断，任何模式都拦，连 bypass 都拦，而且 v2.1.208 起把 $(...)、<() 包起来的变体也一起拦；注意这是"命令注定失败/毁灭级"才熔断，不是所有 rm 都拦。第二档，删具体文件比如 rm build/output.js，本身不撞熔断，怎么判看模式和范围：Manual 下要问、acceptEdits 因为是工作目录内的 fs 命令直接放、bypass 放；如果你写了 deny Bash(rm:*) 那就任何模式都拦。第三档，删到工作目录外或受保护目录，任何非 bypass 模式都不自动放。下半讲路径校验：所有文件操作路径都会被规整成绝对路径再判，还会跟符号链接较劲——allow 要求软链接和它指向的目标都匹配才放，deny 只要沾一边就拦，堵 TOCTOU。受保护目录清单 .git .claude(除 worktrees) .ssh .vscode .idea 等，这些的写入只有 bypass 会自动放，其它模式一律先问。落脚：删除危不危险，系统看的是"目标是什么、在不在范围、什么模式"，不是命令长什么样。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">23 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">29 / 48</div></div>
   <h2>"删根目录"拦得住，那"删一个文件"呢？</h2>
   <p class="subtitle">删除危不危险，系统看的是<b>目标是什么、在不在范围、什么模式</b>——不是命令长什么样。删除分三档，路径要过安全校验。</p>
   <div class="grid two" style="margin-top:12px;align-items:start">
@@ -715,13 +921,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="card" style="margin-top:12px"><div class="label">受保护目录</div><p><code>.git</code> <code>.claude</code>(除 worktrees) <code>.ssh</code> <code>.vscode</code> <code>.idea</code> 等。写入<b>只有 bypass 自动放</b>，其它模式一律先问。</p></div>
     </div>
   </div>
-  <div class="foot"><span>同样一条 rm，删根目录永远拦、删范围内的文件按模式判——判的是目标和范围</span><span>23</span></div>
+  <div class="foot"><span>同样一条 rm，删根目录永远拦、删范围内的文件按模式判——判的是目标和范围</span><span>29</span></div>
 </section>
 
 
 <!-- ============ 19 权限复用矩阵 ============ -->
 <section class="slide" data-note="专门回答大家最疑惑的：这轮授的权，换个场景还算不算数。逐格讲：Bash 的不再问会写进 settings.local.json，同一个仓库跨会话都记得；文件编辑的不再问只当次有效。子代理默认继承父的权限，可以用 frontmatter 收窄。Hook 跑在权限之前，能 allow/deny/ask，但盖不过硬 deny。最后给粒度和五级优先级，告诉大家怎么自定义。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">24 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">30 / 48</div></div>
   <h2>这轮授的权，换个对话/子代理/Hook 还算数吗？</h2>
   <p class="subtitle">这是使用者最容易踩坑的地方。答案得分情况——记住下面这张表，基本就不会误判了。</p>
   <div class="grid two" style="margin-top:12px">
@@ -743,13 +949,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:14px"><b>记住：多层规则是"合并"的。</b>各来源的 allow/ask/deny 叠加，<b>deny 永远最硬</b>。不确定当前生效哪条，用 <code>/permissions</code> 看。</div>
     </div>
   </div>
-  <div class="foot"><span>能管到命令前缀、目录、参数这一级；跨会话记不记得，取决于写进了哪个文件</span><span>24</span></div>
+  <div class="foot"><span>能管到命令前缀、目录、参数这一级；跨会话记不记得，取决于写进了哪个文件</span><span>30</span></div>
 </section>
 
 
 <!-- ============ 20 安全分层 ============ -->
 <section class="slide" data-note="这页别讲成纯安全。核心是安全和好用不是二选一，是分层协商：越低风险越顺畅，越高影响越要拦。最后那条产品启示很关键——权限体验必须能解释、能最小授权、能撤回，否则用户迟早全放开，治理就白设计了。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">25 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">31 / 48</div></div>
   <h2>安全和好用，不是二选一</h2>
   <p class="subtitle">按风险分三条通道：低风险走得飞快，高影响必须拦一下。这样既不烦人，又不失控。</p>
   <div class="lanes">
@@ -758,13 +964,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="lane high"><div class="lane-tag">高影响<br>必须拦</div><div class="lane-body"><b>改配置、访问网络、发布、删除、跨系统写入</b> —— 提高确认门槛，留审计，收紧范围。</div></div>
   </div>
   <div class="band yellow-band" style="margin-top:24px"><b>一条产品经验：</b>权限体验必须能解释、能只授权最小范围、能撤回。否则用户嫌烦，最后一律"全部放开"——你设计的那套治理就等于没有。</div>
-  <div class="foot"><span>治理不是把它关笼子里，是让它能真正进到线上环境干活</span><span>25</span></div>
+  <div class="foot"><span>治理不是把它关笼子里，是让它能真正进到线上环境干活</span><span>31</span></div>
 </section>
 
 
 <!-- ============ 应用页 · 四、工具与权限 ============ -->
 <section class="slide application-slide" data-note="应用页（骨架）。应用：怎么把权限配到既不烦人又不失控？ 先固定排布与小节落点，后续补入团队真实案例、命令与截图。">
-  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">26 / 40</div></div>
+  <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">32 / 48</div></div>
   <h2>应用：怎么把权限配到既不烦人又不失控？</h2>
   <p class="subtitle">讲完分档、决策管线、模式、Bash 拆解、删除与路径、跨场景复用，落到实操：写规则、切模式、查来源。</p>
   <div class="grid three" style="margin-top:34px">
@@ -773,12 +979,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="card"><div class="label">03 · 查生效来源</div><p><b>/permissions</b><br>不确定当前哪条生效、来自哪个文件，直接查；规则是合并不是覆盖。</p></div>
   </div>
   <div class="band purple-band" style="margin-top:30px"><b>本节落地：</b>权限体验要能解释、能最小授权、能撤回——否则用户迟早"全放开"，治理就白设计。</div>
-  <div class="foot"><span>应用页 · 工具与权限 · 后续补团队 settings.json 样例</span><span>26</span></div>
+  <div class="foot"><span>应用页 · 工具与权限 · 后续补团队 settings.json 样例</span><span>32</span></div>
 </section>
 
 <!-- ============ 17 五种扩展对比 ============ -->
 <section class="slide" data-note="第四专题。先把五种扩展点一句话区分清楚，别混成一个。Skill=打包的提示与流程；MCP=接外部系统成为工具；Hook=生命周期拦截；命令=可复用提示（已并入 Skill）；子代理=独立上下文的子任务。后面三页分别手把手讲 Hook、Skill、MCP 怎么写、怎么最快接。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">27 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">33 / 48</div></div>
   <h2>五种扩展点，一句话先分清</h2>
   <p class="subtitle">"我想把自己的东西接进去"，第一步是选对扩展点。它们解决的是不同的问题。</p>
   <table class="exttable">
@@ -790,13 +996,42 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <tr><td>子代理</td><td>独立上下文的子任务代理（<code>.claude/agents/*.md</code>）</td><td>隔离长任务、专职探索 / 审查，省主上下文</td></tr>
   </table>
   <div class="band purple-band" style="margin-top:22px"><b>别把"接得多"当成功：</b>每接一个，都带来认证、权限、可用性和上下文噪音的成本。接下来三页，分别手把手过一遍 Hook、Skill、MCP。</div>
-  <div class="foot"><span>官方已把自定义命令并进 Skill——同一个 /deploy，Skill 多出支持文件、frontmatter 和自动触发</span><span>27</span></div>
+  <div class="foot"><span>官方已把自定义命令并进 Skill——同一个 /deploy，Skill 多出支持文件、frontmatter 和自动触发</span><span>33</span></div>
+</section>
+
+
+<!-- ============ 扩展机制 × 上下文成本 × 插入点 ============ -->
+<section class="slide slide-31-density" data-note="这页回答上一页没答的一个问题：为什么是四种扩展机制，不合并成一两种？答案在'上下文成本'这条轴上——四种机制消耗上下文窗口的量级完全不同，一种机制没法从'零成本的生命周期 Hook'一路覆盖到'塞满 schema 的工具服务器'。逐个看：MCP 提供外部服务集成（多传输），代价是工具 schema 常驻上下文，成本最高，插入点在 model() 组装工具池那步（assembleToolPool 合并内建 + MCP 工具）；Plugin 是打包分发层，把另外三样任意组合成可分发包，成本随内容变，三个插入点都可能用到；Skill 提供领域指令 + 元工具调用，成本最低——只有 frontmatter 的 description 常驻，正文按需加载，插入点在 assemble() 往上下文注入那步；Hook 是生命周期拦截 + 事件驱动自动化，默认零上下文占用，插入点在 execute() 工具执行前后（pre/post tool）。一句话结论：不是功能重叠，是每种机制在'上下文成本'这条轴上占不同的位，各自服务不同的接入需求。子 Agent 不在这四种里，因为它是新开一个隔离上下文窗口，而不是往当前窗口里加东西。文件名、插入点函数名照抄源码，随版本变。">
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">34 / 48</div></div>
+  <h2>为什么是四种扩展，不合成一种？看"上下文成本"这条轴</h2>
+  <p class="subtitle">上一页分清了五种扩展点。这页回答一个更深的问题：干嘛不合并成一两种？——因为它们<b>吃上下文窗口的量级完全不同</b>，一种机制没法同时又是"零成本的生命周期钩子"又是"塞满 schema 的工具服务器"。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <table class="matrix">
+        <tr><th>机制</th><th>独有能力</th><th>上下文成本</th><th>插入点（源码）</th></tr>
+        <tr><td><b>MCP</b></td><td>接外部服务（多传输）</td><td class="cost-hi">高<br><span>工具 schema 常驻</span></td><td><code>model()</code>：工具池</td></tr>
+        <tr><td><b>Plugin</b></td><td>多组件打包 + 分发</td><td class="cost-mid">中<br><span>随内容变</span></td><td>三个点都可能</td></tr>
+        <tr><td><b>Skill</b></td><td>领域指令 + 元工具</td><td class="cost-lo">低<br><span>只有 description 常驻</span></td><td><code>assemble()</code>：注入上下文</td></tr>
+        <tr><td><b>Hook</b></td><td>生命周期拦截 + 自动化</td><td class="cost-zero">零<br><span>默认不占，可选注入</span></td><td><code>execute()</code>：工具前后</td></tr>
+      </table>
+      <div class="hint" style="margin-top:10px">工具池组装 <code>assembleToolPool()</code>（<code>tools.ts</code>）把内建工具 + MCP 工具合并进模型可见列表——这就是 MCP 的 schema "常驻"的地方。</div>
+    </div>
+    <div>
+      <div class="band" style="margin-bottom:12px"><b>一句话：不是功能重叠，是各占一档成本位。</b>把它们排在同一条"上下文成本"轴上就一目了然——从零成本的 Hook，到只带 description 的 Skill，到 schema 常驻的 MCP，覆盖了扩展作者的不同需求。</div>
+      <div class="code-cap">三个插入点，对应三个执行时机</div>
+      <div class="code"><span class="k">model()</span>   <span class="c">// 组装工具池：MCP/工具 在这进模型视野</span>
+<span class="k">assemble()</span> <span class="c">// 拼上下文：Skill 的指令在这注入</span>
+<span class="k">execute()</span>  <span class="c">// 跑工具前后：Hook 在这拦截/改写/标注</span></div>
+      <div class="band orange-band" style="margin-top:12px"><b>子 Agent 为什么不在这四种里？</b>因为它<b>新开一个隔离的上下文窗口</b>去干活，而不是往<b>当前</b>窗口里加东西——这四种都是"给当前会话加料"，子 Agent 是"另起一摊"。所以它单独归到多 Agent 那章。</div>
+    </div>
+  </div>
+  <div class="foot"><span>四机制按上下文成本从零到高排开，各有唯一插入点；子 Agent 是另开窗口不在此列（机制/插入点取自源码，随版本变）</span><span>34</span></div>
 </section>
 
 
 <!-- ============ 18 Hook 实操 ============ -->
 <section class="slide" data-note="回答哪些生命周期点我能用，却根本不知道。Hook 就是在这些节点上插一段自己的命令，确定性执行，不靠模型判断，而且改完热重载不用重启。左边列常用事件，右边给一个真能抄的配置：改完文件自动跑 prettier。再给两个高频场景：挡住读 .env、rm 命令要二次确认。强调 PreToolUse 能返回 allow/deny/ask，但盖不过硬 deny。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">28 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">35 / 48</div></div>
   <h2>Hook：那些"能用却没人知道"的生命周期点</h2>
   <p class="subtitle">Hook 就是在流程的固定节点上，插一段你自己的命令——确定性执行，不靠模型判断，改完热重载不用重启。很多人不知道有这东西可用。</p>
   <div class="grid two" style="margin-top:14px">
@@ -823,13 +1058,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:14px"><b>另外两个高频场景：</b><br>· <code>PreToolUse</code> 匹配 <code>Read</code> → 命中 <code>.env</code> 就 <b>deny</b>，守住密钥<br>· <code>PreToolUse</code> 匹配 <code>Bash</code> → 命中 <code>rm</code> 就 <b>ask</b>，危险命令二次确认</div>
     </div>
   </div>
-  <div class="foot"><span>Hook 是"到点必执行"的确定性规则，适合做治理；别拿它当模型的替代品</span><span>28</span></div>
+  <div class="foot"><span>Hook 是"到点必执行"的确定性规则，适合做治理；别拿它当模型的替代品</span><span>35</span></div>
 </section>
 
 
 <!-- ============ 18-A Hook 详解：是什么/为什么/权限边界 ============ -->
 <section class="slide" data-note="这页集中回答几个关于 Hook 的常见疑问，别念表，挑重点讲。一，Hook 是干什么的：在流程固定节点上插一段你自己的命令，确定性执行——到点必跑，不靠模型判断。二，为什么要用：模型可能忘记或选择不做某件事，但 Hook 是运行时强制触发的，适合做治理和硬约束。三，能实现什么特点：确定性执行、生命周期拦截、PreToolUse 能返回 allow/deny/ask、能往上下文注入内容、改完热重载。四，什么时候需要：需要每次都必须发生的事——提交前 lint、改完自动格式化、守住密钥、危险命令拦截、审计留痕。右边是全场最要强调的权限边界：Hook 不被沙箱限制，以你账户的完整权限直接跑,没有二次确认弹窗,Claude Code 不替你拦——你自己负全责。PreToolUse 虽然跑在权限检查之前、能影响决策,但 allow 只是免掉弹窗,盖不过静态 deny,尤其组织 managed 的 deny 永远赢。硬约束要用权限系统,不是 Hook。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">29 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">36 / 48</div></div>
   <h2>Hook 到底是干什么的？为什么要用它？</h2>
   <div class="grid two" style="margin-top:14px">
     <div>
@@ -850,13 +1085,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint"><b>结论：</b>要做<b>硬约束</b>用权限系统（deny 规则）；Hook 适合做<b>确定性动作与治理</b>，别拿它当安全边界。</div>
     </div>
   </div>
-  <div class="foot"><span>Hook = 你亲手写、到点必跑的命令；能力很大，安全责任也全在你</span><span>29</span></div>
+  <div class="foot"><span>Hook = 你亲手写、到点必跑的命令；能力很大，安全责任也全在你</span><span>36</span></div>
 </section>
 
 
 <!-- ============ 18-B Hook 实操：怎么加 ============ -->
 <section class="slide" data-note="这页直接回答：我想给自己的 Claude Code 加 Hook，具体怎么操作。三步。第一步选作用域、打开对应的 settings.json：只给自己用写 ~/.claude、给团队共享写项目 .claude 并提交 git、只本机本项目写 .local。顺带提优先级：managed 最高，然后 local、project、user，权限相关是合并不是覆盖。第二步按 hooks → 事件名 → matcher → command 的结构写，给一个能直接抄的 PreToolUse 例子：匹配 Bash、命中 rm 就 ask 二次确认。第三步保存即生效,热重载不用重启;想看已经注册了哪些 Hook 就输 /hooks——注意它是只读浏览器,只能看不能在里面加,加还是得编辑文件或让 Claude 帮你写。最后提醒 exit code 语义:0 成功、2 阻断并把 stderr 回给模型,以及别在 Hook 里跑没验证过的命令。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">30 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">37 / 48</div></div>
   <h2>怎么给我的 Claude Code 加 Hook？三步</h2>
   <p class="subtitle">直接回答"具体怎么操作"：<b>选作用域 → 写结构 → 存盘即生效</b>。全程就是编辑一个 <code>settings.json</code>。</p>
   <div class="grid two" style="margin-top:12px">
@@ -895,13 +1130,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint red"><b>再强调一次：</b>Hook 以你的完整权限跑、无确认——别把没验证过的命令写进去。</div>
     </div>
   </div>
-  <div class="foot"><span>加 Hook = 编辑 settings.json 的三步；/hooks 只能看，加靠改文件</span><span>30</span></div>
+  <div class="foot"><span>加 Hook = 编辑 settings.json 的三步；/hooks 只能看，加靠改文件</span><span>37</span></div>
 </section>
 
 
 <!-- ============ Hook 业务场景 ============ -->
 <section class="slide slide-31-density" data-note="这页是全 Hook 章最要落地的一页：别只讲机制，给六个真能抄的业务场景，每个都是'什么痛点 → 挂哪个事件+matcher → 命令干啥 → 换来什么'。逆向材料里明确点到的：改完自动 lint（材料 §9.1 行19671，command 执行器 spawn 跑 lint/测试脚本）；TDD——一个 Skill 会注册 PostToolUse Hook，每次改完代码自动跑测试，会话级、随 Skill 建了又销（行21328）；审计留痕——记录所有执行过的命令供事后审查，每个决策带 decisionReason 连成完整审计链（行1981/33340/9482）；收工/待确认通知——Notification 事件做桌面通知、外部推送，HTTP 执行器 execHttpHook 能接 Slack/CI（行33576/18278）；交作业前必须过 CI——stop_hook_blocking，Stop Hook 返回阻止继续（比如 CI 没过）就不让收工（行6125）；守密钥/拦危险命令——机制上 PreToolUse 能 deny，但材料把密钥防护归给独立的 secretScanner 层、危险命令归给命令 AST 分析，Hook 是加一道而不是唯一防线。顺带点两个'比你以为的多'：27 个生命周期事件、6 种执行器（command/prompt/agent/http/callback/function）。右边给两段真能抄的配置。数字取自逆向材料，运行细节以本机为准。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">31 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">38 / 48</div></div>
   <h2>Hook 到底拿来干嘛？六个真实场景</h2>
   <p class="subtitle">机制讲完了，落到"我团队会怎么用"。每个都是<b>痛点 → 挂哪个事件 → 命令干啥 → 换来什么</b>——不是抽象能力，是能抄的配置。</p>
   <div class="grid two" style="margin-top:12px">
@@ -933,13 +1168,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:12px"><b>诚实边界：</b>守密钥、拦 <code>rm</code> 用 Hook 是<b>加一道闸</b>——材料里密钥防护主力是独立的 <code>secretScanner</code> 层、危险命令是命令 AST 分析。真要硬约束，还得靠权限系统的 <code>deny</code>。</div>
     </div>
   </div>
-  <div class="foot"><span>Hook 的价值在"每次都必须发生"的治理动作：格式化 / 测试 / 审计 / 通知 / 卡口</span><span>31</span></div>
+  <div class="foot"><span>Hook 的价值在"每次都必须发生"的治理动作：格式化 / 测试 / 审计 / 通知 / 卡口</span><span>38</span></div>
 </section>
 
 
 <!-- ============ 19 Skill 实操 ============ -->
 <section class="slide" data-note="直接回答 Skill 到底怎么写、官方有没有示例、怎么最快接。最小结构就是一个目录加一个 SKILL.md，目录名就是命令名。frontmatter 里只有 description 建议必填。关键机制是渐进式披露：平时只把名字和 description 放进上下文，body 只在被调用时才载入，所以长参考资料几乎零成本——这正好呼应记忆章那页注入机制。官方示例在 cookbooks 和官方 marketplace。最快上手就是 mkdir 加写文件，热加载。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">32 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">39 / 48</div></div>
   <h2>Skill 到底怎么写？最小就是一个目录 + 一个文件</h2>
   <div class="grid two" style="margin-top:14px">
     <div>
@@ -971,13 +1206,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
 <span class="c"># 写好 SKILL.md → 直接可用</span></div>
     </div>
   </div>
-  <div class="foot"><span>装官方的：/plugin marketplace add … → /plugin install skill-creator@…</span><span>32</span></div>
+  <div class="foot"><span>装官方的：/plugin marketplace add … → /plugin install skill-creator@…</span><span>39</span></div>
 </section>
 
 
 <!-- ============ 20 MCP 实操 ============ -->
 <section class="slide" data-note="回答怎么最快接一个 MCP。一条 claude mcp add 就行。三种传输：http（远程，最推荐，支持 OAuth）、sse（已弃用）、stdio（本地进程，注意 -- 后面才是启动命令）。作用域三种：local 默认只你自己只当前项目、project 写进 .mcp.json 可提交给团队、user 你所有项目通用。/mcp 看连接状态。补一句呼应记忆章：MCP 工具的完整 schema 是按需加载的，接得多主要压的是那 14% 工具定义那块。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">33 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">40 / 48</div></div>
   <h2>MCP：一条命令，把外部系统接成工具</h2>
   <p class="subtitle">MCP 把知识库、工单、数据库这些外部系统，包成 Claude 能统一调用的工具。接入就一条 <code>claude mcp add</code>。</p>
   <div class="grid two" style="margin-top:14px">
@@ -1005,13 +1240,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:14px"><b>要给团队共享：</b>用 <code>--scope project</code>，把 <code>.mcp.json</code> 提交进仓库，队友拉下来就能用。<br><span class="small"><code>.mcp.json</code> 里有 <code>url</code> 就必须写 <code>type</code>（http / sse），否则报错。</span></div>
     </div>
   </div>
-  <div class="foot"><span>从个人到团队：.claude/skills、.claude/agents、.mcp.json 提交 git；跨项目复用就打成 Plugin 走 marketplace</span><span>33</span></div>
+  <div class="foot"><span>从个人到团队：.claude/skills、.claude/agents、.mcp.json 提交 git；跨项目复用就打成 Plugin 走 marketplace</span><span>40</span></div>
 </section>
 
 
 <!-- ============ 33 自定义总结：遇到什么问题加哪种机制 ============ -->
 <section class="slide" data-note="重写页（原第31/33 被批胡扯）。这页是全场扩展章的总收口：了解了这么多机制，到底该怎么自定义我的 Claude Code？核心一句——先看你遇到的是哪类问题，再对应加哪种机制，别为了接而接。逐行讲这张对照表：①它老忘项目规矩/重复解释同一套流程→写进 CLAUDE.md 或打成 Skill；②要连外部系统(数据库/工单/知识库)→接 MCP；③有件事必须每次都发生(格式化/lint/守密钥)→挂 Hook；④它乱跑或老拿危险命令问你烦→配权限规则 allow/ask/deny + 切模式；⑤长任务聊着聊着丢了早期结论→写进 CLAUDE.md（说人话让它写 / /memory 挑作用域） + 主动 /compact 带关注点。右边给一个"什么时候升级作用域"的判断：只你自己用就放 ~/.claude 或 .local；团队都要用就提交进 .claude/ 走 git；跨项目复用就打成 Plugin。收尾强调：每加一个都有认证/权限/上下文噪音成本，先接高频、少歧义、可审计的。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">34 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">41 / 48</div></div>
   <h2>那到底怎么自定义我的 Claude Code？</h2>
   <p class="subtitle">机制讲完了，收个口：<b>先看你遇到的是哪类问题，再对应加哪种机制</b>——别为了接而接。这张表基本覆盖日常。</p>
   <div class="grid two" style="margin-top:14px;align-items:start;gap:24px">
@@ -1036,13 +1271,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint" style="margin-top:10px">判断很简单：<b>只你用→本地；团队用→进 git；到处用→打包</b>。下一页专门讲个人 / 团队 / 公司这三层配置怎么分工。</div>
     </div>
   </div>
-  <div class="foot"><span>不是"能加什么"，是"你缺什么就补什么"——按问题选机制</span><span>34</span></div>
+  <div class="foot"><span>不是"能加什么"，是"你缺什么就补什么"——按问题选机制</span><span>41</span></div>
 </section>
 
 
 <!-- ============ 34 三层配置：个人/团队/公司 ============ -->
 <section class="slide" data-note="新增页，回答审核点名的团队/公司/个人配置。大多数人只用自己的 ~/.claude，这页把三层摊开：个人、团队、公司(managed)，以及每层各是哪个文件、进不进 git。左边一张分层图，从下到上：公司 managed-settings.json(MDM 下发,最硬,用户改不了) → 用户 ~/.claude/settings.json(你的全局,不进 git) → 项目共享 .claude/settings.json(进 git 团队共享) → 项目私有 .claude/settings.local.json(gitignore 只你本机)。命令行参数当次临时覆盖。特别强调：公司 managed 是最高优先级——命令行也盖不掉它,而且它的 deny 规则恒赢、不受层级覆盖,用户 allow 不回来。两重保障守安全底线。右边给三个真实文件样例：一份团队 .claude/settings.json(权限+模型,提交 git)、一份公司 managed(强制 deny+只允许 managed hook)、一份个人 .local(自己放宽几条,不进 git)。落脚:安全底线用公司 managed 的 deny 兜,团队规范进 git 共享,个人偏好放 .local。managed 路径随 OS 变,mac 在 /Library/Application Support/ClaudeCode/。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">35 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">42 / 48</div></div>
   <h2>个人、团队、公司：三层配置怎么分工</h2>
   <p class="subtitle">大多数人只用过自己的 <code>~/.claude</code>。其实配置分三层——<b>个人偏好、团队规范、公司底线</b>，各有各的文件、各决定进不进 git。</p>
   <div class="grid two" style="margin-top:12px;align-items:start;gap:24px">
@@ -1072,13 +1307,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
 { <span class="k">"permissions"</span>: { <span class="k">"allow"</span>: [<span class="s">"Bash(npm run dev:*)"</span>] } }</div>
     </div>
   </div>
-  <div class="foot"><span>公司 managed 优先级最高 + deny 恒赢，双重守底线；团队规范进 git；个人偏好放 .local</span><span>35</span></div>
+  <div class="foot"><span>公司 managed 优先级最高 + deny 恒赢，双重守底线；团队规范进 git；个人偏好放 .local</span><span>42</span></div>
 </section>
 
 
 <!-- ============ 35 团队 git 与个人偏好怎么共存 ============ -->
 <section class="slide" data-note="新增页，回答审核最后那个具体问题：自己的 git 配置和团队的 git 规则,通用还是分开?怎么共存?核心两句:一,多层配置是合并不是覆盖——团队的 .claude/settings.json 和你的 ~/.claude、CLAUDE.md 和你的 CLAUDE.local.md,是叠加生效,不是谁把谁整段盖掉;同类规则按层级定,但 deny 从任意层都恒赢。二,想加个人偏好又不弄脏团队提交的文件,就写进 gitignore 的那两个:.claude/settings.local.json 和 CLAUDE.local.md——这俩就是为'个人本机覆盖'设计的。左边一张'哪些进 git、哪些留本地'的清单,把 settings.json/settings.local.json、CLAUDE.md/CLAUDE.local.md、.mcp.json、skills/agents/rules 都归位。右边讲信任门:第一次打开一个带 .claude/settings.json 或 .mcp.json 的项目,会弹信任确认;项目里的 env 变量等到你点了信任才应用——因为恶意项目可能用 settings.json 设个 HTTP_PROXY 劫持你的流量。落脚:团队共享的进 git、个人的写 .local,deny 恒赢保证公司底线不被本地放开,陌生项目先过信任门。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">36 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">43 / 48</div></div>
   <h2>团队的 git 规则，和我个人的配置怎么共存？</h2>
   <p class="subtitle">答案两句：<b>多层是合并不是覆盖</b>；想加个人偏好又不弄脏团队提交的文件，就写进那两个 <code>*.local</code> / <code>*.local.md</code>——它们天生 gitignore。</p>
   <div class="grid two" style="margin-top:12px;align-items:start;gap:24px">
@@ -1104,13 +1339,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint" style="margin-top:10px">所以克隆别人的仓库、第一次进，别急着点信任——先扫一眼它的 <code>.claude/</code> 里写了什么。</div>
     </div>
   </div>
-  <div class="foot"><span>团队的进 git、个人的写 .local；deny 恒赢守住底线；陌生项目先过信任门</span><span>36</span></div>
+  <div class="foot"><span>团队的进 git、个人的写 .local；deny 恒赢守住底线；陌生项目先过信任门</span><span>43</span></div>
 </section>
 
 
 <!-- ============ 应用页 · 五、Hook 与扩展 ============ -->
 <section class="slide application-slide" data-note="应用页（骨架）。应用：怎么给自己的 Claude Code 接上团队的东西？ 先固定排布与小节落点，后续补入团队真实案例、命令与截图。">
-  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">37 / 40</div></div>
+  <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">44 / 48</div></div>
   <h2>应用：怎么给自己的 Claude Code 接上团队的东西？</h2>
   <p class="subtitle">讲完五种扩展、Hook 三步、Skill、MCP，落到实操：从个人到团队，按什么顺序接、接完怎么共享。</p>
   <div class="grid three" style="margin-top:34px">
@@ -1119,12 +1354,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="card"><div class="label">03 · 共享给团队</div><p><b>提交 git / 打 Plugin</b><br><code>.claude/skills</code>、<code>.claude/agents</code>、<code>.mcp.json</code> 提交仓库；跨项目复用打成 Plugin 走 marketplace。</p></div>
   </div>
   <div class="band purple-band" style="margin-top:30px"><b>本节落地：</b>接得多不是本事——每接一个都有认证、权限、上下文噪音成本；先接高频、少歧义、可审计的。</div>
-  <div class="foot"><span>应用页 · Hook 与扩展 · 后续补团队实际接入清单</span><span>37</span></div>
+  <div class="foot"><span>应用页 · Hook 与扩展 · 后续补团队实际接入清单</span><span>44</span></div>
 </section>
 
 <!-- ============ 多 Agent · 机制 ============ -->
 <section class="slide" data-note="这页讲子 Agent 到底怎么起、上下文怎么隔离，全部对着逆向材料第 6 章讲。两种模式：Fork 和 Coordinator。Fork：源码 forkSubagent.ts 的 buildForkedMessages()，把父对话整段历史复制给子 Agent，再附一条 directive；子 Agent 拿到自己独立的 QueryEngine 循环，连父的文件读取缓存都克隆一份 cloneFileStateCache；model 用 inherit，跟父同一个模型，免得切模型把 prompt cache 冲掉。Coordinator：coordinatorMode.ts，靠 COORDINATOR_MODE 开关，工人看不到调度的对话，prompt 必须自包含。最要强调：结果回传只有最终那段，用一条 XML task-notification（就一个 result + 用量），子 Agent 一路的对话历史不会并回主线——这正是保护主上下文不膨胀。成本：N 个 fork 天真算就是 N 倍上下文，靠 prompt cache 前缀对齐共享省掉大头，材料称最多省 90% 输入成本。深度只有一层：fork 出来的不能再 fork，报错 Fork is not available inside a forked worker，防无限递归。名字/数字都取自逆向材料，随版本变。">
-  <div class="top"><div class="kicker">附：多 Agent</div><div class="chapter">38 / 40</div></div>
+  <div class="top"><div class="kicker">附：多 Agent</div><div class="chapter">45 / 48</div></div>
   <h2>多 Agent：子 Agent 怎么起、上下文怎么不打架</h2>
   <p class="subtitle">起子 Agent 有两种玩法，差别就在"子 Agent 能不能看见你的对话"。子任务干完，回来的<b>只有一段结论</b>，不是它一路的流水账。</p>
   <div class="agent-compare">
@@ -1139,13 +1374,55 @@ Reactive compact: <span class="s">summarization returned API error</span>
   </div>
   <div class="band" style="margin-top:18px"><b>结果怎么回来：</b>子 Agent 干完，只把<b>最终那段结论</b>用一条 <code>&lt;task-notification&gt;</code> 回传（就一个 <code>&lt;result&gt;</code> + 用量统计），<b>不会把它一路的对话历史并回主线</b>——这正是"保护主上下文不被撑爆"的关键。</div>
   <div class="band orange-band" style="margin-top:12px"><b>两条要记的红线：</b><br>· <b>成本：</b>N 个 fork 天真算就是 N 倍上下文；靠 prompt cache <b>前缀对齐共享</b>省掉大头（材料称最多省 ~90% 输入成本）<br>· <b>深度只有一层：</b>fork 出来的子 Agent <b>不能再 fork</b>（报错 "Fork is not available inside a forked worker"），防无限递归</div>
-  <div class="foot"><span>子 Agent = 独立上下文的替身；回来的是结论不是流水账，代价是复制上下文</span><span>38</span></div>
+  <div class="foot"><span>子 Agent = 独立上下文的替身；回来的是结论不是流水账，代价是复制上下文</span><span>45</span></div>
+</section>
+
+
+<!-- ============ 多 Agent · 源码：buildForkedMessages ============ -->
+<section class="slide slide-31-density" data-note="贴源码页。上一页讲了 Fork 怎么复制上下文，这页直接看那段源码，眼见为实。forkSubagent.ts 的 buildForkedMessages() 只做三件事：① 从父 Agent 最后那条 assistant 消息里，把所有 tool_use 块留下来；② 给每个 tool_use 造一个统一占位的 tool_result，内容全是同一句 'Fork started — processing in background'；③ 把父历史 + 占位结果 + 本 fork 专属的 directive 拼成子 Agent 的起始消息。为什么占位要统一？因为父 Agent 同时起 3 个 fork 时，三个子 Agent 的消息前缀除了最后那条 directive，前面一模一样——这样 prompt cache 前缀能对齐，三份 fork 共享同一段缓存，材料称最多省 90% 输入成本。这就是上一页那句'靠前缀对齐共享省掉大头'的代码级证据。占位符文本、函数结构都照抄材料 6.2 节，随版本变。">
+  <div class="top"><div class="kicker">附：多 Agent</div><div class="chapter">46 / 48</div></div>
+  <h2>贴源码：一个 Fork 是怎么"复制上下文"的</h2>
+  <p class="subtitle">上一页说 Fork 会"整段复制父历史 + 前缀对齐省缓存"。这段就是干这事的函数——不长，三步看完就懂它凭什么省 90%。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <div class="code-cap">源码 <code>src/tools/AgentTool/forkSubagent.ts</code>（材料 §6.2，简化）</div>
+      <div class="code"><span class="c">// 所有 fork 子 Agent 用同一句占位文本 ← 关键</span>
+<span class="k">const</span> FORK_PLACEHOLDER_RESULT = <span class="s">'Fork started — processing in background'</span>
+
+<span class="k">function</span> buildForkedMessages(directive, assistantMessage) {
+  <span class="c">// ① 留下父 Agent 那条消息里所有 tool_use 块</span>
+  <span class="k">const</span> toolUseBlocks = assistantMessage.message.content
+    .filter(b =&gt; b.type === <span class="s">'tool_use'</span>)
+
+  <span class="c">// ② 每个 tool_use 配一个"统一占位"的 tool_result</span>
+  <span class="k">const</span> toolResultBlocks = toolUseBlocks.map(b =&gt; ({
+    type: <span class="s">'tool_result'</span>, tool_use_id: b.id,
+    content: [{ type: <span class="s">'text'</span>, text: FORK_PLACEHOLDER_RESULT }],
+  }))
+
+  <span class="c">// ③ 父历史 + 占位结果 + 本 fork 专属指令</span>
+  <span class="k">return</span> [ fullAssistantMessage, createUserMessage({
+    content: [ ...toolResultBlocks,
+      { type: <span class="s">'text'</span>, text: buildChildMessage(directive) } ],
+  }) ]
+}</div>
+    </div>
+    <div>
+      <div class="band" style="margin-bottom:12px"><b>为什么占位要"统一"？</b>父 Agent 同时起 3 个 fork 时，三条消息的前缀只有<b>最后一句 directive</b> 不同：</div>
+      <div class="code"><span class="c">Fork A:</span> [系统提示][对话历史][tool_result:"Fork started…"][<b>指令 A</b>]
+<span class="c">Fork B:</span> [系统提示][对话历史][tool_result:"Fork started…"][<b>指令 B</b>]
+<span class="c">Fork C:</span> [系统提示][对话历史][tool_result:"Fork started…"][<b>指令 C</b>]</div>
+      <div class="hint" style="margin-top:12px"><b>前缀一字不差 → prompt cache 前缀对齐命中</b>：三个 fork 共享同一段缓存，只有尾巴各付各的。这就是上一页"最多省 ~90% 输入成本"的来处。</div>
+      <div class="band orange-band" style="margin-top:12px"><b>读代码的点：</b>子 Agent 起手看到的不是真实工具结果，而是一句"处理中"的占位——它本来就不该等父任务，只按自己那条 directive 干活。</div>
+    </div>
+  </div>
+  <div class="foot"><span>占位统一是为缓存前缀对齐；函数只做"复制历史 + 附指令"两件事（源码取自逆向材料，随版本变）</span><span>46</span></div>
 </section>
 
 
 <!-- ============ 多 Agent · 判断与自定义 ============ -->
 <section class="slide" data-note="这页两件事：一，什么时候真该拆——三关，答不上就串行。子任务真独立吗（老得共享状态互相等就串行）、输出有没有约定（回来只收一段 result，得是结构化结论不是散文）、挂了能不能局部恢复。补一句：Fork 缺的正是显式编排，没有先研究完再实现的分阶段、也没有汇总步骤，要这些就上 Coordinator。二，怎么定义自己的子 Agent：.claude/agents/xxx.md，frontmatter 四件套 name/description/tools/model，正文就是这个子 Agent 的 System Prompt；放项目 .claude/agents 提交 git 全团队复用，放 ~/.claude/agents 只给自己。选型直觉：带同样背景各干各的用 Fork；阶段分明要拼装、要隔离用 Coordinator；想要个反复调的专职角色写成 .claude/agents。都取自逆向材料第 6 章。">
-  <div class="top"><div class="kicker">附：多 Agent</div><div class="chapter">39 / 40</div></div>
+  <div class="top"><div class="kicker">附：多 Agent</div><div class="chapter">47 / 48</div></div>
   <h2>多 Agent：什么时候真该拆，怎么定义自己的子 Agent</h2>
   <div class="grid two" style="margin-top:14px">
     <div>
@@ -1172,13 +1449,13 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="band orange-band" style="margin-top:10px"><b>一句话选型：</b>带着同样背景各干各的 → <b>Fork</b>；阶段分明、要拼装要隔离 → <b>Coordinator</b>；想要个反复调的"专职角色" → 写成 <code>.claude/agents</code>。</div>
     </div>
   </div>
-  <div class="foot"><span>Agent 更多≠更聪明；先过三关，专职角色写成 .claude/agents 复用</span><span>39</span></div>
+  <div class="foot"><span>Agent 更多≠更聪明；先过三关，专职角色写成 .claude/agents 复用</span><span>47</span></div>
 </section>
 
 
 <!-- ============ 24 结尾 ============ -->
 <section class="slide dark" data-note="回到开场，别用神秘感收尾。强调这四件事一起成立：循环让它动，记忆让它续航，权限让它可信，扩展让它进真实工作流。最后抛个问题给大家讨论，活跃气氛，也顺便收集想法。">
-  <div class="top"><div class="kicker">收尾</div><div class="chapter">40 / 40</div></div>
+  <div class="top"><div class="kicker">收尾</div><div class="chapter">48 / 48</div></div>
   <h1>它厉害的地方，不在某一句神秘的 Prompt</h1>
   <div class="quote">而是把模型放进了一套能<span style="color:#4fb5a9">动手</span>、能<span style="color:#efba4b">续航</span>、能<span style="color:#f19b7c">受控</span>、还能<span style="color:#b8a1de">接上我们自己工具</span>的运行时里。</div>
   <div class="four-keys">
@@ -1189,7 +1466,7 @@ Reactive compact: <span class="s">summarization returned API error</span>
     <div class="key k5"><b>Hook 与扩展</b><span>在对的节点，把团队的工具和规范接进来。</span></div>
   </div>
   <div class="band" style="margin-top:38px;background:#e5f3ee;color:#172026"><b>留个问题一起聊：</b>如果下个季度只能补一样，你觉得哪样最能同时提高成功率、少人工介入、又不失控？</div>
-  <div class="foot"><span>谢谢，欢迎拍砖</span><span>40</span></div>
+  <div class="foot"><span>谢谢，欢迎拍砖</span><span>48</span></div>
 </section>
 
 </main>
