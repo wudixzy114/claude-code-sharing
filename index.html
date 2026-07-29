@@ -137,13 +137,13 @@
 <!-- ============ 06 上下文里装了啥（budget demo） ============ -->
 <section class="slide" data-note="第二专题，回答凭什么能一直聊。先破误解：它不是靠无限大的窗口，是把有限窗口当资源调度。点填充，看六块各占多少。这里不再只分看得见和看不见，而是按来源与进入时机区分：启动注入、对话产生、运行时回填、输出预留。重点看橙色工具结果，它是运行中动态回填、也最容易失控的一块。百分比是实测示例，随版本和项目会变，现场可 /context 查。">
   <div class="top"><div class="kicker">二、记忆</div><div class="chapter">06 / 24</div></div>
-  <h2>凭什么能一直聊？先看窗口里到底装了啥</h2>
-  <p class="subtitle">点一下，看内容按什么顺序进入窗口：先是启动注入，再有人与模型的对话，随后才是运行时回填的工具结果。</p>
+  <h2>上下文窗口里装了什么</h2>
+  <p class="subtitle">以 20 万 token 的窗口为例，点一下按进入顺序填充：启动注入的固定开销、对话产生的内容、运行时回填的工具结果。</p>
   <div class="budgetdemo">
     <div class="budget-bar"><div class="track" id="budgetTrack">
-      <div class="bseg sys"    data-w="12"><span>系统提示词</span></div>
-      <div class="bseg tools"  data-w="14"><span>内置工具定义</span></div>
-      <div class="bseg proj"   data-w="10"><span>CLAUDE.md</span></div>
+      <div class="bseg sys"    data-w="12"><span>系统提示词 ~4.2K</span></div>
+      <div class="bseg tools"  data-w="14"><span>内置工具定义 ~10K</span></div>
+      <div class="bseg proj"   data-w="10"><span>CLAUDE.md ~2K</span></div>
       <div class="bseg msg"    data-w="14"><span>你的话+模型回复</span></div>
       <div class="bseg result" data-w="38"><span>工具结果：代码/日志/搜索</span></div>
       <div class="bseg out"    data-w="12"><span>留给输出</span></div>
@@ -155,80 +155,91 @@
       <span class="lg"><span class="sw reserve"></span>为下一次输出预留</span>
     </div>
     <div class="budget-rows" id="budgetRows">
-      <div class="brow b-sys"><div class="bk">系统提示词<span class="pct">~12%</span><span class="bwho boot">启动注入</span></div><div class="btip">平台规则与运行边界，在你输入前已进入上下文。</div></div>
-      <div class="brow b-tools"><div class="bk">内置工具定义<span class="pct">~14%</span><span class="bwho boot">启动注入</span></div><div class="btip">工具名称、参数和约束，构成稳定的上下文前缀。</div></div>
-      <div class="brow b-proj"><div class="bk">CLAUDE.md<span class="pct">~10%</span><span class="bwho boot">启动注入</span></div><div class="btip">会话启动时读取的项目规则与长期记忆。</div></div>
+      <div class="brow b-sys"><div class="bk">系统提示词<span class="pct">~4.2K</span><span class="bwho boot">启动注入</span></div><div class="btip">平台规则与运行边界，在你输入前已进入上下文；官方示例约 4,200 token。</div></div>
+      <div class="brow b-tools"><div class="bk">内置工具定义<span class="pct">~10K</span><span class="bwho boot">启动注入</span></div><div class="btip">Read/Edit/Bash 等工具的名称、参数、约束，始终在场；这块无官方精确值，此处按量级估。</div></div>
+      <div class="brow b-proj"><div class="bk">CLAUDE.md<span class="pct">~2K</span><span class="bwho boot">启动注入</span></div><div class="btip">启动时读取的项目规则与长期记忆；官方示例项目级约 1,800 token。</div></div>
       <div class="brow b-msg"><div class="bk">你的话 + 模型回复<span class="pct">~14%</span><span class="bwho conversation">对话产生</span></div><div class="btip">人提交任务，模型逐轮生成判断与回复。</div></div>
       <div class="brow b-result"><div class="bk">工具结果<span class="pct">~38%</span><span class="bwho runtime">动态回填</span></div><div class="btip">工具执行后写回当前会话；大日志最容易快速膨胀。</div></div>
       <div class="brow b-out"><div class="bk">留给输出<span class="pct">~12%</span><span class="bwho reserve">输出预留</span></div><div class="btip">它不是已注入内容，而是为下一次模型生成保留的空间。</div></div>
     </div>
   </div>
   <div class="demo-bar" style="margin-top:14px"><button class="demo-btn" id="budgetPlay">填充看看 ▶</button><button class="demo-btn ghost" id="budgetReset">重来</button><span class="demo-status" id="budgetStatus">点一下，按进入顺序区分启动注入、对话产生和动态回填</span></div>
-  <div class="foot"><span>百分比是实测示例，随版本 / 项目 / 接入的 MCP 会变；现场可用 /context 查实际占用</span><span>06</span></div>
+  <div class="foot"><span>token 量级与百分比均为实测示例（部分取自官方文档示意值），随版本 / 项目 / 接入的 MCP 会变；现场可用 /context 查实际占用</span><span>06</span></div>
 </section>
 
 <!-- ============ 07 注入机制（NEW） ============ -->
-<section class="slide" data-note="回答这些内容什么时候进入上下文。按一轮的时间线分三类：会话启动时由 Claude Code 注入稳定前缀；人提交当前任务和显式选中的材料；运行过程中再按需加载规则、能力正文和工具结果。启动注入不等于后续请求完全不再携带，它通常作为稳定前缀复用 prompt cache；动态内容则随当前轮变化。">
+<section class="slide" data-note="这页回答一轮上下文到底怎么拼出来的，重点讲你看不见的隐式注入。分两段隐式 + 一段显式。第一段启动前缀：系统提示词和内置工具 schema 先进，然后 CLAUDE.md 按目录树从根到工作目录逐层拼接——企业策略、~/.claude、项目根、当前目录，同级里 CLAUDE.local.md 排在 CLAUDE.md 之后。关键一句：这些文件全部拼接进去，谁也不覆盖谁，越靠近工作目录的排越后、最后读到；而且 CLAUDE.md 是作为系统提示词之后的一条 user 消息注入的，你在终端里根本看不到。子目录 CLAUDE.md、带 paths 的规则、Skill 正文、MCP 完整 schema 都留到运行时按需加载。中间那段人显式发起的一笔带过。收尾强调：隐式注入占了一大半，人真正手输的只有中间一段。">
   <div class="top"><div class="kicker">二、记忆</div><div class="chapter">07 / 24</div></div>
-  <h2>一轮上下文，是按什么顺序组装出来的？</h2>
-  <p class="subtitle">按来源和时机拆成三段：Claude Code 先放稳定前缀，人再发起任务，运行时只把当前需要的规则、能力和结果补进来。</p>
-  <div class="inject-flow" style="margin-top:18px">
+  <h2>一轮上下文，是按什么顺序组装起来的？</h2>
+  <p class="subtitle">大部分内容是你看不见的「隐式注入」：启动前缀 + 运行时按需。你真正手输的，只有中间那一小段。</p>
+  <div class="inject-flow" style="margin-top:16px">
     <div class="inject-card boot">
-      <div class="inject-step">01 · 会话启动</div>
-      <h3>Claude Code 注入稳定前缀</h3>
-      <ul>
-        <li>系统提示词、内置工具 schema</li>
-        <li>祖先目录 CLAUDE.md、auto memory</li>
-        <li>Skill 名称与描述、MCP 工具名、环境信息</li>
-      </ul>
-      <p>后续请求通常复用这段稳定前缀的 prompt cache。</p>
+      <div class="inject-step">01 · 启动前缀（隐式，看不见）</div>
+      <h3>Claude Code 按顺序拼接</h3>
+      <ol class="inject-ol">
+        <li>系统提示词 + 内置工具 schema + 环境 / git 信息</li>
+        <li>CLAUDE.md 沿目录树<b>从根到工作目录逐层拼</b>：企业策略 → <code>~/.claude</code> → 项目根 → 当前目录；同级里 <code>CLAUDE.local.md</code> 排在 <code>CLAUDE.md</code> 之后</li>
+        <li>auto memory（<code>MEMORY.md</code> 前 200 行 / 25KB）</li>
+        <li>无 <code>paths</code> 的 <code>.claude/rules/</code>、Skill 名称+描述、MCP 工具名</li>
+      </ol>
+      <p><b>这些全部拼接，谁也不覆盖谁</b>；越靠工作目录的排越后、最后读到。CLAUDE.md 是<b>系统提示词之后的一条 user 消息</b>——终端里你看不到它。</p>
     </div>
     <div class="inject-arrow" aria-hidden="true">→</div>
     <div class="inject-card conversation">
-      <div class="inject-step">02 · 人发起一轮</div>
-      <h3>人的输入进入会话历史</h3>
+      <div class="inject-step">02 · 人发起一轮（显式，唯一看得见）</div>
+      <h3>你手输的这一段</h3>
       <ul>
         <li>当前任务、补充要求、确认或纠正</li>
-        <li>显式粘贴的文本、附件</li>
-        <li>在 IDE 中选中的代码与上下文</li>
+        <li>粘贴的文本、附件</li>
+        <li>在 IDE 里显式选中的代码</li>
       </ul>
-      <p>这是人直接提供的内容，不属于系统自动注入。</p>
+      <p>整轮上下文里，这一段才是人直接提供、你自己看得见的内容。</p>
     </div>
     <div class="inject-arrow" aria-hidden="true">→</div>
     <div class="inject-card runtime">
-      <div class="inject-step">03 · 运行时按需</div>
-      <h3>Agent 与运行时动态补齐</h3>
-      <ul>
-        <li>system-reminder、路径相关规则</li>
-        <li>子目录 CLAUDE.md、Skill 正文、MCP 完整 schema</li>
-        <li>工具调用与执行结果、模型回复</li>
-      </ul>
-      <p>只在命中或调用时进入，随后成为需要管理的会话内容。</p>
+      <div class="inject-step">03 · 运行时按需（隐式，看不见）</div>
+      <h3>命中 / 调用才补进来</h3>
+      <ol class="inject-ol">
+        <li>子目录 <code>CLAUDE.md</code>：读到该目录下的文件才加载</li>
+        <li>带 <code>paths</code> 的规则：命中匹配文件才触发</li>
+        <li>Skill 正文：被调用时才载入（渐进式披露）</li>
+        <li>MCP 完整 schema：tool search 按需拉取</li>
+        <li>system-reminder、工具执行结果、模型回复</li>
+      </ol>
+      <p>它们在你输入前都不在场，进来后就成了要管理的会话内容。</p>
     </div>
   </div>
-  <div class="band purple-band inject-note"><b>关键区别：</b>“启动注入”描述来源与时机，不代表只发送一次；“动态注入”描述按需进入，也不代表用完立刻从历史消失。</div>
-  <div class="foot"><span>想省上下文，重点是把 Skill 正文、子目录规则和完整工具 schema 留在按需阶段</span><span>07</span></div>
+  <div class="band purple-band inject-note"><b>一句话记住：</b>01 和 03 两段隐式内容，终端里几乎都看不到，却占了上下文一大半；人真正手输的只有中间 02 那一小段。想省上下文，先盯住隐式这两段。</div>
+  <div class="foot"><span>CLAUDE.md 走「拼接」不走「覆盖」；子目录规则、Skill 正文、完整工具 schema 尽量留在运行时按需阶段</span><span>07</span></div>
 </section>
 
 <!-- ============ 08 工具输出防爆炸（NEW） ============ -->
-<section class="slide" data-note="直接回答工具输出太长、太短怎么办。这里不是要求人手工控制每次调用：模型负责选择工具、生成尽量有边界的参数，并在结果不足时决定是否续查；Claude Code 运行时负责执行、标记空结果、裁剪或分页，并把状态与引用回填给模型。前面第 06 页的橙色 38% 指的就是这类动态回填。">
+<section class="slide" data-note="这页只回答一件事：工具结果太长怎么办。先看左边四种情况的处理原则，重点讲太长和太短两行。右边给两个具体例子。太长：一次 grep 命中几百上千行，运行时不会把整坨塞回上下文，而是把完整结果落到一个文件里，只回一条带路径 + 命中数的引用，模型要细看再按路径展开——省下的就是第 06 页那 38%。太短或为空更容易被误判：命令成功但没有输出、或搜索零命中，如果只回一个空字符串，模型会以为工具没跑成，所以运行时会补一句明确信号，比如 exit 0，无输出 或 无匹配（0 处）。把这两种都收拾干净，工具结果这块就不会失控。">
   <div class="top"><div class="kicker">二、记忆</div><div class="chapter">08 / 24</div></div>
-  <h2>工具结果太长 / 太短，各怎么办？</h2>
-  <p class="subtitle">第 06 页占用图中的橙色 38% 就是这块。它最容易膨胀，所以工具调用结束时就要整理，不能只等后面的压缩兜底。</p>
-  <div class="grid two" style="margin-top:16px">
-    <table class="matrix">
+  <h2>工具结果太长怎么办？</h2>
+  <p class="subtitle">第 06 页占用图里橙色 38% 就是这块，最容易膨胀。工具一调完就地整理，别只等后面的压缩兜底。</p>
+  <div class="grid two" style="margin-top:16px;grid-template-columns:1.05fr 1fr">
+    <table class="matrix" style="margin-top:0">
       <tr><th>情况</th><th>运行时怎么处理</th></tr>
-      <tr><td>太长（大日志 / 大文件）</td><td>截断 + 留一条<b>引用</b>，要用再展开，不整段塞</td></tr>
-      <tr><td>太短 / 为空</td><td>给一个<b>明确信号</b>（如"无匹配 / 已成功无输出"），别让模型以为工具没跑</td></tr>
+      <tr><td>太长（大日志 / 大文件）</td><td>完整结果落到文件，只回一条<b>带路径的引用</b>，要用再按路径展开</td></tr>
+      <tr><td>太短 / 为空</td><td>补一个<b>明确信号</b>（如 <code>exit 0，无输出</code>），别让模型以为工具没跑成</td></tr>
       <tr><td>二进制 / 图片</td><td>不塞原始字节，转成一句<b>描述</b>（多少字节、什么类型）</td></tr>
       <tr><td>重复 / 刷屏日志</td><td><b>去重、合并</b>同类行，只留代表 + 计数</td></tr>
     </table>
-    <div>
-      <div class="band orange-band tool-owner"><b>谁负责什么？</b><br><strong>模型 / Agent</strong>选择工具、生成带范围或分页的参数，并判断结果够不够；<strong>Claude Code 运行时</strong>负责真正执行、规范化结果、标记截断状态和保留回查引用。</div>
-      <div class="tool-cycle" aria-label="工具结果闭环">
-        <div><span>1</span><b>模型发起调用</b><small>尽量带路径、范围、上限或游标</small></div>
-        <div><span>2</span><b>运行时整理结果</b><small>返回完整 / 空 / 截断状态与证据引用</small></div>
-        <div><span>3</span><b>模型判断下一步</b><small>不足就缩小范围续查；足够就停止调用</small></div>
+    <div class="tool-eg">
+      <div class="tool-eg-block long">
+        <div class="eg-cap"><span class="eg-dot orange"></span>太长 · 落文件 + 留引用</div>
+        <div class="code"><span class="c"># grep 命中 1,284 行，不整坨回填，而是：</span>
+↳ 已写入 <span class="s">/tmp/cc-grep-8f2.txt</span>
+  <span class="k">1,284</span> 处命中 · 需要就按此路径展开</div>
+      </div>
+      <div class="tool-eg-block short">
+        <div class="eg-cap"><span class="eg-dot teal"></span>太短 / 空 · 给明确信号</div>
+        <div class="code"><span class="c"># 命令成功但没有 stdout，不回空串，而是：</span>
+<span class="k">exit 0</span>，无输出
+
+<span class="c"># 搜索零命中，不回空，而是：</span>
+<span class="k">无匹配（0 处）</span></div>
       </div>
     </div>
   </div>
@@ -236,7 +247,7 @@
 </section>
 
 <!-- ============ 09 四层压缩动画（全场重点） ============ -->
-<section class="slide" data-note="全场最重要的一页，慢慢讲。先讲手动模式：点压一层，看右边真实长度的上下文块怎么变短。第一层大结果换成一行引用、第二层去重截断——这两层是本地确定性处理，不花钱、不调模型（标绿）。第三层把过程整理成一条结构化摘要、第四层折叠整段历史——这两层要调一次模型（标黄），也就是真实日志里那个独立的压缩请求，这一步失败会导致会话继续涨到 Prompt too long。每压一层上面进度条明显往下掉：88→70→58→36→22。讲完手动，点看动态压缩：让上下文自己涨，逼近阈值线时后台自动压尾端，占用回落——强调压缩是动态的、后台一直在做的，不是你按一下才发生。">
+<section class="slide" data-note="全场最重要的一页，慢慢讲。手动模式：点压一层，看右边那一块构建日志被一层层削。第一层换引用——大块正文存盘、原处只留一行引用路径；第二层清冗余截断——3 条重复 WARNING 合并成 1 条、超长尾巴截断（这两层特意做成对同一块日志的不同修剪，让大家看清区别，都是本地确定性、不花钱、标绿）。第三层把整个过程整理成一条结构化摘要、第四层折叠整段历史——这两层各要调一次模型（标黄），就是真实日志里那个独立压缩请求，失败会导致会话继续涨到 Prompt too long。每压一层上面进度条明显往下掉：88→72→60→38→22。讲完手动，点看动态压缩：这个也是手动一步步点的，看上下文一轮轮长起来、逼近阈值线，越过后后台自动把尾端旧结果换成引用、占用回落——强调压缩是后台动态发生的，不是你按一下才有。">
   <div class="top"><div class="kicker">二、记忆</div><div class="chapter">09 / 24</div></div>
   <h2>四层压缩：哪几层本地就能做，哪几层要调模型？</h2>
   <div class="demo compdemo">
@@ -256,7 +267,7 @@
         </div>
       </div>
       <div class="ctx">
-        <div class="chead">当前上下文里都装了啥（点左边按钮，一层一层压 / 或点"看动态压缩"）</div>
+        <div class="chead">当前上下文里都装了啥（点"压一层"手动压四层 / 或点"看动态压缩"一步步看后台压尾端）</div>
         <div class="ctx-list" id="ctxList"></div>
       </div>
     </div>

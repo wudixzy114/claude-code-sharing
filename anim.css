@@ -95,19 +95,25 @@
 .inject-step{font-size:14px;font-weight:700;color:var(--muted);margin-bottom:10px}
 .inject-card h3{font-size:22px;margin-bottom:13px}
 .inject-card ul{margin:0;padding-left:22px}
-.inject-card li{font-size:16px;line-height:1.45;margin:8px 0;color:#344248}
-.inject-card p{font-size:15px;line-height:1.45;color:var(--muted);margin:15px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.inject-card ol.inject-ol{margin:0;padding-left:20px}
+.inject-card li{font-size:16px;line-height:1.42;margin:7px 0;color:#344248}
+.inject-card ol.inject-ol li{font-size:14.5px;line-height:1.38;margin:6px 0}
+.inject-card ol.inject-ol code{font-family:"SF Mono",Consolas,monospace;font-size:12.5px;background:#eef2ef;padding:0 4px;border-radius:4px}
+.inject-card p{font-size:14.5px;line-height:1.42;color:var(--muted);margin:12px 0 0;padding-top:11px;border-top:1px solid var(--line)}
+.inject-card p code,.inject-card p b{color:#344248}
 .inject-arrow{display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;color:var(--muted)}
 .inject-note{margin-top:15px;padding:12px 18px;font-size:17px}
 
-/* ========== tool result ownership (slide 8) ========== */
-.tool-owner{font-size:17px;line-height:1.55;margin-bottom:12px}
-.tool-owner strong{color:var(--orange)}
-.tool-cycle{display:grid;gap:8px}
-.tool-cycle>div{display:grid;grid-template-columns:32px 150px 1fr;align-items:center;gap:10px;padding:11px 13px;border:1.5px solid var(--line);border-radius:8px;background:var(--white)}
-.tool-cycle span{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--white);font-size:14px;font-weight:700}
-.tool-cycle b{font-size:16px}
-.tool-cycle small{font-size:14px;line-height:1.35;color:var(--muted)}
+/* ========== tool result examples (slide 8) ========== */
+.tool-eg{display:flex;flex-direction:column;gap:16px}
+.tool-eg-block{border:1.5px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--white)}
+.tool-eg-block.long{border-left:6px solid var(--orange)}
+.tool-eg-block.short{border-left:6px solid var(--teal)}
+.tool-eg .eg-cap{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:700;margin-bottom:11px}
+.tool-eg .eg-dot{width:13px;height:13px;border-radius:50%;flex:0 0 auto}
+.tool-eg .eg-dot.orange{background:var(--orange)}
+.tool-eg .eg-dot.teal{background:var(--teal)}
+.tool-eg .code{font-size:15px;line-height:1.7}
 
 /* ========== compression demo (slide 9) ========== */
 .compdemo{display:grid;grid-template-columns:250px 1fr;gap:30px;align-items:start;margin-top:14px}

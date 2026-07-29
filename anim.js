@@ -149,9 +149,12 @@
   })();
 
   // ============================================================
-  // 3) COMPRESSION demo (slide 09) — two modes:
-  //    (a) manual: press "压一层" 4 times, watch blocks shrink & meter drop
-  //    (b) dynamic: watch the tail auto-compress as the log keeps growing
+  // 3) COMPRESSION demo (slide 09) — two manual modes on ONE tool result:
+  //    (a) 压一层: step the 4 compaction layers; each visibly transforms
+  //        the SAME build-log block (换引用 ≠ 清冗余截断), meter drops.
+  //    (b) 动态压缩: step through a growing transcript; near the threshold
+  //        the tail auto-compacts. Both modes advance one click at a time,
+  //        each with a one-line caption of what just happened.
   // ============================================================
   const CompDemo = (function(){
     const layersWrap = $('#compLayers');
@@ -167,98 +170,87 @@
     const status = $('#compStatus');
     const meter = $('#compMeter');
 
-    // ---- initial context blocks, with REAL length so shrink is visible ----
-    // lines[] renders as multi-line; big tool results are genuinely tall.
-    const initial = [
+    // ---- keep just ONE bulky tool result so you can watch exactly what
+    //      happens to it at each layer. The build log carries obvious
+    //      redundancy (3 identical WARNING lines) + a big tail, so 换引用
+    //      and 清冗余截断 produce visibly different edits on it.
+    const initial = () => ([
       {cls:'keep',  tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']},
-      {cls:'bulky', tag:'工具结果 · grep 搜索', lines:[
-        'src/router/parse.ts:12:  export function parsePath(raw){',
-        'src/router/parse.ts:41:  const q = parsePath(url).query',
-        'src/router/match.ts:88:  if(parsePath(p).path === base){',
-        'src/legacy/url.ts:203:  // TODO 替换旧的 parsePath',
-        'test/parse.spec.ts:7:  describe("parsePath", () => {',
-        '… 共命中 37 处，另 32 行省略']},
       {cls:'bulky', tag:'工具结果 · 构建日志', lines:[
-        '> webpack --mode production',
-        'asset main.4f2a9c.js 1.8 MiB [emitted] [big]',
-        'asset vendor.9b1e77.js 3.2 MiB [emitted] [big]',
-        'orphan modules 412 KiB [orphan] 128 modules',
-        'cacheable modules 6.1 MiB',
-        '  ./src/router/parse.ts 2.4 KiB [built]',
-        'webpack compiled with 2 warnings in 8421 ms',
-        '… 共 218 行输出']},
-      {cls:'bulky', tag:'工具结果 · 测试 stdout', lines:[
-        'PASS test/router.spec.ts (12 tests)',
-        'FAIL test/parse.spec.ts',
-        '  ● parsePath › 空 query 应返回 {}',
-        '    expected {} but received null',
-        '      at Object.<anonymous> (test/parse.spec.ts:31)',
-        '… 完整 stdout 共 96 行']},
+        '&gt; webpack --mode production',
+        'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
+        'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
+        'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
+        './src/router/parse.ts 2.4 KiB [built]',
+        'webpack compiled with 3 warnings in 8421 ms',
+        '… 余下 210 行输出（大量 chunk 哈希）']},
       {cls:'keep',  tag:'已验证事实', lines:['新实现基于 URL 解析；空 query 已补分支']},
-    ];
+    ]);
 
-    // what each layer does; returns a new blocks array
+    // Each layer returns a NEW blocks array. The build-log block keeps the
+    // same tag through L1/L2 so you track one result being progressively cut.
     const passes = [
-      // layer 1: reference replacement — big results become a one-line reference
-      (blocks) => blocks.map(b => b.cls==='bulky'
-        ? {cls:'shrunk', tag:b.tag, lines:[refText(b.tag)+'  <span class="cut local">换引用</span>']}
+      // L1 换引用: the oversized tail payload → a one-line path reference.
+      // The block does NOT collapse; only the bulk moves out to a file.
+      (blocks) => blocks.map(b => b.tag==='工具结果 · 构建日志'
+        ? {cls:'bulky', tag:b.tag, lines:[
+            '&gt; webpack --mode production',
+            'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
+            'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
+            'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
+            './src/router/parse.ts 2.4 KiB [built]',
+            'webpack compiled with 3 warnings in 8421 ms',
+            '↳ 余下 210 行已存 /tmp/cc-build.log <span class="cut local">换引用</span>']}
         : b),
-      // layer 2: micro-compress — dedup/truncate references further
-      (blocks) => blocks.map(b => b.cls==='shrunk'
-        ? {cls:'shrunk', tag:b.tag, lines:[refText(b.tag)+'  <span class="cut local">去重截断</span>']}
+      // L2 清冗余截断: the 3 identical WARNING lines merge into one; the
+      // reference tail gets truncated. Same block, now several lines shorter.
+      (blocks) => blocks.map(b => b.tag==='工具结果 · 构建日志'
+        ? {cls:'bulky', tag:b.tag, lines:[
+            '&gt; webpack --mode production',
+            'WARNING  vendor.js 超过体积上限 (3.2 MiB) <span class="cut local">×3 已去重</span>',
+            './src/router/parse.ts 2.4 KiB [built]',
+            'webpack compiled with 3 warnings in 8421 ms',
+            '↳ /tmp/cc-build.log <span class="cut local">已截断</span>']}
         : b),
-      // layer 3: structured session summary — fold the过程 into ONE record (LLM)
+      // L3 记结构化摘要 (LLM): fold the whole process into ONE record.
       (blocks) => {
         const keep = blocks.filter(b => b.cls==='keep');
         return [
           keep[0],
-          {cls:'summary', tag:'会话摘要 · 一次模型调用', lines:['已读 parsePath → 改写为 URL 解析 → 测试 1 项失败(空 query) → 补分支 → 12 项全过。下一步：交付。']},
+          {cls:'summary', tag:'会话摘要 · 一次模型调用', lines:['已读 parsePath → 改写为 URL 解析 → 构建通过(3 警告) → 测试补空 query 分支 → 12 项全过。下一步：交付。']},
           keep[1] || {cls:'keep', tag:'已验证事实', lines:['空 query 已补分支']},
         ];
       },
-      // layer 4: semantic fold — everything old becomes one summary + recent原文 (LLM)
+      // L4 折叠整段历史 (LLM): everything old → one summary + recent原文.
       (blocks) => [
         {cls:'summary', tag:'折叠摘要 · 一次模型调用', lines:['目标 + 关键约束 + 已验证结论，压成一段；细节按引用回查']},
         {cls:'keep', tag:'最近原文', lines:['最后一轮：npm test 全过，准备交付']},
       ],
     ];
 
-    function refText(tag){
-      if(tag.indexOf('grep')>=0 || tag.indexOf('搜索')>=0) return '↳ 引用 #grep-1（37 处，路径已存，可展开）';
-      if(tag.indexOf('构建')>=0) return '↳ 引用 #build-1（218 行日志，可展开）';
-      if(tag.indexOf('测试')>=0) return '↳ 引用 #test-1（96 行 stdout，可展开）';
-      return '↳ 引用';
-    }
-
-    const usedByStep = [88, 70, 58, 36, 22];
+    const usedByStep = [88, 72, 60, 38, 22];
     const layerNames = ['换引用','清冗余截断','记结构化摘要','折叠整段历史'];
+    // one-line "what just happened to the tool result" per layer
+    const layerCaps = [
+      '大块日志正文存盘，原处只留一行引用 + 路径',
+      '3 条重复 WARNING 合并成 1 条、超长尾巴截断',
+      '把「读→改→构建→测试→补分支→全过」压成一条摘要',
+      '整段历史折叠成一条摘要 + 最近一轮原文',
+    ];
 
-    let step = 0;
-    let blocks = initial.slice();
-    let autoTimer = null;
+    let step = 0;              // manual layer step (0..4)
+    let blocks = initial();
 
     function renderBlock(b){
       const block = el('block '+b.cls, '<span class="btag">'+b.tag+'</span>');
-      const body = b.lines.join('<br>');
-
-      // Keep the full examples in the DOM, but collapse genuinely long tool
-      // results so they cannot push the slide controls or footer off-canvas.
-      if(b.lines.length >= 4){
-        const details = document.createElement('details');
-        details.innerHTML = '<summary><span class="detail-label">展开完整内容</span><span class="line-count">'+b.lines.length+' 行</span></summary>'
-          + '<div class="block-details-body">'+body+'</div>';
-        block.appendChild(details);
-      } else {
-        block.insertAdjacentHTML('beforeend', body);
-      }
+      block.insertAdjacentHTML('beforeend', b.lines.join('<br>'));
       return block;
     }
 
-    function render(){
+    function render(scrollBottom){
       list.innerHTML = '';
       blocks.forEach(b => list.appendChild(renderBlock(b)));
-      const used = usedByStep[step];
-      setUsed(used);
+      if(scrollBottom) list.scrollTop = list.scrollHeight;
     }
 
     function setUsed(used){
@@ -274,13 +266,97 @@
       });
     }
 
-    function stopAuto(){ if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; } meter.classList.remove('over'); }
+    // ---- manual layer stepping ----
+    function next(){
+      exitDynamic();
+      if(step >= passes.length) return;
+      const prev = usedByStep[step];
+      blocks = passes[step](blocks);
+      step++;
+      render();
+      setUsed(usedByStep[step]);
+      markLayers();
+      const isLLM = step >= 3;
+      status.textContent = '第 '+step+' 层「'+layerNames[step-1]+'」：'+layerCaps[step-1]
+        + ' · ' + (isLLM ? '调一次模型' : '本地不花钱')
+        + ' · 占用 '+prev+'%→'+usedByStep[step]+'%';
+      if(step >= passes.length){
+        nextBtn.disabled = true;
+        nextBtn.textContent = '压到头了 ✓';
+        status.textContent = '四层压完：88% → 22%。留住了目标 / 结论 / 待办 —— 这就是能一直续航的原因';
+      }
+    }
+
+    // ---- dynamic mode: transcript grows, tail auto-compacts at threshold ----
+    // Manual stepper too: each click advances one event with its own caption.
+    let inDyn = false, dynIdx = 0, dynBlocks = [];
+    const dynSteps = [
+      {kind:'add', block:{cls:'keep',  tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']}, used:30, over:false, cap:'起点：只有用户目标，占用 30%'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['先看看这个函数 → 调 Read']}, used:34, over:false, cap:'① 模型发起：要调 Read'},
+      {kind:'add', block:{cls:'bulky', tag:'工具结果 · Read', lines:['parsePath(): 42 行源码','3 处正则拼接']}, used:48, over:false, cap:'② Read 结果回填 → 34%→48%'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['改写为 URL 解析 → 调 Edit']}, used:52, over:false, cap:'③ 模型发起：要调 Edit'},
+      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 构建日志', lines:['webpack 218 行输出','vendor 3.2 MiB … 大量 chunk 哈希']}, used:74, over:false, cap:'④ 构建日志回填 → 52%→74%'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['跑测试 → 调 Bash']}, used:78, over:false, cap:'⑤ 模型发起：要调 Bash'},
+      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 测试 stdout', lines:['96 行 stdout','1 项失败：空 query 返回 null']}, used:90, over:true, cap:'⑥ 测试结果回填 → 涨到 90%，越过阈值线'},
+      {kind:'compact', used:52, over:false, cap:'⑦ 后台自动压尾端：旧的大结果换成引用 → 90%→52%'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['补空值分支 → 再跑，12 项全过 ✓']}, used:60, over:false, cap:'⑧ 接着往下跑 —— 压缩是后台一直在做的，不是你按一下才发生'},
+    ];
+
+    function enterDynamic(){
+      inDyn = true;
+      dynIdx = 0;
+      dynBlocks = [];
+      step = 0;
+      markLayers();
+      list.innerHTML = '';
+      setUsed(30);
+      meter.classList.remove('over');
+      nextBtn.disabled = true;
+      autoBtn.textContent = '动态 · 下一步 ▶';
+      status.textContent = '点「下一步」：看上下文一轮轮长起来，逼近阈值线时后台自动压尾端';
+    }
+
+    function exitDynamic(){
+      if(!inDyn) return;
+      inDyn = false;
+      meter.classList.remove('over');
+      autoBtn.textContent = '▶ 看动态压缩';
+    }
+
+    function dynNext(){
+      if(dynIdx >= dynSteps.length){   // finished → restart dynamic run
+        enterDynamic();
+        return;
+      }
+      const e = dynSteps[dynIdx++];
+      if(e.kind==='add'){
+        dynBlocks.push(e.block);
+      } else { // compact: collapse existing bulky results into references
+        dynBlocks = dynBlocks.map(b => b.cls==='bulky'
+          ? {cls:'shrunk', tag:b.tag, lines:['↳ 引用（已折叠，可展开） <span class="cut local">尾端压缩</span>']}
+          : b);
+      }
+      blocks = dynBlocks;
+      render(true);
+      setUsed(e.used);
+      meter.classList.toggle('over', !!e.over);
+      status.textContent = e.cap;
+      if(dynIdx >= dynSteps.length){
+        autoBtn.textContent = '动态跑完 · 再看一次 ▶';
+      }
+    }
+
+    function autoClick(){
+      if(!inDyn){ enterDynamic(); dynNext(); }
+      else dynNext();
+    }
 
     function reset(){
-      stopAuto();
+      exitDynamic();
       step = 0;
-      blocks = initial.slice();
+      blocks = initial();
       render();
+      setUsed(usedByStep[0]);
       markLayers();
       status.textContent = '从最便宜、最不丢信息的做起，实在不行才动整段历史';
       nextBtn.disabled = false;
@@ -289,100 +365,8 @@
       autoBtn.textContent = '▶ 看动态压缩';
     }
 
-    function next(){
-      stopAuto();
-      if(step >= passes.length) return;
-      blocks = passes[step](blocks);
-      step++;
-      render();
-      markLayers();
-      const isLLM = step >= 3;
-      status.textContent = '第 '+step+' 层「'+layerNames[step-1]+'」完成 · '
-        + (isLLM ? '这层要调一次模型' : '这层本地就能做、不花钱')
-        + ' · 占用降到 '+usedByStep[step]+'%';
-      if(step >= passes.length){
-        nextBtn.disabled = true;
-        nextBtn.textContent = '压到头了 ✓';
-        status.textContent = '四层压完：88% → 22%。留住了目标 / 结论 / 待办 —— 这就是能一直续航的原因';
-      }
-    }
-
-    // ---- dynamic mode: log keeps growing, tail auto-compresses at threshold ----
-    // Each event pushes a block and bumps used%. Crossing ~86% triggers a
-    // background tail-compaction that collapses the oldest bulky blocks.
-    function runAuto(){
-      stopAuto();
-      step = 0;
-      markLayers();
-      nextBtn.disabled = true;
-      autoBtn.disabled = true;
-      let used = 30;
-      blocks = [ {cls:'keep', tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']} ];
-      render(); setUsed(used);
-
-      const feed = [
-        {cls:'model', tag:'模型', lines:['先看看这个函数 → 调 Read'], w:4},
-        {cls:'bulky', tag:'工具结果 · Read', lines:['parsePath(): 42 行，3 处正则拼接','（完整源码 42 行）'], w:12},
-        {cls:'model', tag:'模型', lines:['改写为 URL 解析 → 调 Edit'], w:4},
-        {cls:'bulky', tag:'工具结果 · 构建日志', lines:['webpack 218 行输出','vendor 3.2MiB … 大量 chunk 哈希'], w:16},
-        {cls:'model', tag:'模型', lines:['跑测试 → 调 Bash'], w:4},
-        {cls:'bulky', tag:'工具结果 · 测试 stdout', lines:['96 行 stdout','1 项失败：空 query 返回 null'], w:15},
-        {cls:'model', tag:'模型', lines:['补空值分支 → 调 Edit，再跑'], w:5},
-        {cls:'bulky', tag:'工具结果 · 测试 stdout', lines:['96 行 stdout','12 项全过 ✓'], w:15},
-      ];
-      let i = 0;
-
-      const tick = () => {
-        if(i >= feed.length){
-          status.textContent = '看到了吗：上下文一边长，后台一边压尾端 —— 压缩是动态的，不是你按一下才发生';
-          autoBtn.disabled = false;
-          autoBtn.textContent = '再看一次 ▶';
-          nextBtn.disabled = false;
-          autoTimer = null;
-          return;
-        }
-        const e = feed[i++];
-        used += e.w;
-        blocks.push({cls:e.cls, tag:e.tag, lines:e.lines});
-        // keep list bounded visually
-        renderDynamic();
-        setUsed(Math.min(used, 97));
-        status.textContent = '第 '+i+' 步：上下文涨到 '+Math.min(used,97)+'%';
-
-        if(used >= 86){
-          // background tail compaction
-          meter.classList.add('over');
-          status.textContent = '⚠ 逼近阈值线 —— 后台自动压缩尾端…';
-          autoTimer = setTimeout(() => {
-            // collapse oldest bulky blocks into references
-            let freed = 0;
-            blocks = blocks.map(b => {
-              if(b.cls==='bulky' && freed < 3){ freed++; return {cls:'shrunk', tag:b.tag, lines:['↳ 引用（已折叠，可展开）  <span class="cut local">尾端压缩</span>']}; }
-              return b;
-            });
-            used = Math.max(40, used - freed*13);
-            renderDynamic();
-            setUsed(used);
-            meter.classList.remove('over');
-            status.textContent = '尾端已压：占用回落到 '+used+'%，继续往下跑';
-            autoTimer = setTimeout(tick, 900);
-          }, 1100);
-        } else {
-          autoTimer = setTimeout(tick, 900);
-        }
-      };
-
-      function renderDynamic(){
-        list.innerHTML = '';
-        blocks.forEach(b => list.appendChild(renderBlock(b)));
-        list.scrollTop = list.scrollHeight;
-      }
-
-      autoTimer = setTimeout(tick, 700);
-    }
-
     nextBtn.addEventListener('click', next);
-    autoBtn.addEventListener('click', runAuto);
+    autoBtn.addEventListener('click', autoClick);
     resetBtn.addEventListener('click', reset);
     return {reset};
   })();
