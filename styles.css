@@ -361,6 +361,42 @@ button{font:inherit}
 .matrix .no{color:var(--red);font-weight:700}
 .matrix code{font-family:"SF Mono",Consolas,monospace;font-size:15px;background:#eef2ef;padding:1px 6px;border-radius:4px}
 
+/* ---------- dense layouts: keep full slide content above the fixed footer ---------- */
+.slide-14-density .top,.slide-19-density .top,.slide-31-density .top{margin-bottom:16px}
+.slide-14-density h2,.slide-19-density h2,.slide-31-density h2{font-size:38px;margin-bottom:10px}
+.slide-14-density .subtitle,.slide-19-density .subtitle,.slide-31-density .subtitle{font-size:21px;line-height:1.42}
+.slide-14-density .matrix,.slide-19-density .matrix,.slide-31-density .matrix{margin-top:12px;font-size:16px}
+.slide-14-density .matrix th,.slide-14-density .matrix td,.slide-19-density .matrix th,.slide-19-density .matrix td,.slide-31-density .matrix th,.slide-31-density .matrix td{padding:9px 11px;line-height:1.3}
+.slide-14-density .matrix th,.slide-19-density .matrix th,.slide-31-density .matrix th{font-size:15px}
+.slide-14-density .matrix code,.slide-19-density .matrix code,.slide-31-density .matrix code{font-size:13px;padding:1px 4px}
+.slide-14-density .grid.two,.slide-31-density .grid.two{margin-top:8px!important}
+.slide-14-density .band,.slide-19-density .band,.slide-31-density .band{padding:11px 14px;font-size:17px;line-height:1.38}
+.slide-14-density .code{padding:11px 14px;font-size:13px;line-height:1.45}
+.slide-14-density .code-cap{font-size:14px;margin-bottom:6px}
+.slide-14-density .hint,.slide-31-density .hint{font-size:14px;line-height:1.35;margin-top:8px!important}
+.slide-19-density .grid.two{margin-top:12px!important}
+.slide-31-density .code{padding:11px 14px;font-size:13px;line-height:1.45}
+.slide-31-density .code-cap{font-size:14px;margin-bottom:6px}
+
+/* The mode and Hook pages have less dense source material, so retain a larger reading size. */
+.slide-19-density h2{font-size:40px;margin-bottom:14px}
+.slide-19-density .subtitle{font-size:23px;line-height:1.45}
+.slide-19-density .matrix{margin-top:16px;font-size:17px}
+.slide-19-density .matrix th,.slide-19-density .matrix td{padding:11px 14px;line-height:1.38}
+.slide-19-density .matrix th{font-size:16px}
+.slide-19-density .matrix code{font-size:14px;padding:1px 5px}
+.slide-19-density .band{padding:14px 16px;font-size:18px;line-height:1.42}
+
+.slide-31-density h2{font-size:39px;margin-bottom:12px}
+.slide-31-density .subtitle{font-size:22px;line-height:1.4}
+.slide-31-density .matrix{font-size:17px}
+.slide-31-density .matrix th,.slide-31-density .matrix td{padding:11px 14px;line-height:1.36}
+.slide-31-density .matrix th{font-size:16px}
+.slide-31-density .matrix code{font-size:14px;padding:1px 5px}
+.slide-31-density .code{padding:13px 16px;font-size:14px;line-height:1.5}
+.slide-31-density .code-cap{font-size:15px;margin-bottom:7px}
+.slide-31-density .band{padding:13px 16px;font-size:18px;line-height:1.4}
+
 .exttable{width:100%;border-collapse:collapse;margin-top:22px;font-size:18px}
 .exttable th,.exttable td{border:1.5px solid var(--line);padding:14px 16px;text-align:left;line-height:1.45;vertical-align:top}
 .exttable th{background:var(--ink);color:#fff;font-size:17px}
