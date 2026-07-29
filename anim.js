@@ -106,15 +106,23 @@
 
     function reset(){
       clearTimer();
-      segs.forEach(s => s.style.width = '0');
+      segs.forEach(s => {
+        s.style.width = '0';
+        s.classList.remove('revealed');
+      });
       rows.forEach(r => r.classList.remove('lit'));
-      status.textContent = '点一下，看窗口被谁一块块占满 —— 注意最前面几块，你还没打字就没了';
+      status.textContent = '点一下，按进入顺序区分启动注入、对话产生和动态回填';
       btn.disabled = false;
       btn.textContent = '填充看看 ▶';
     }
 
     function fill(){
       clearTimer();
+      segs.forEach(s => {
+        s.style.width = '0';
+        s.classList.remove('revealed');
+      });
+      rows.forEach(r => r.classList.remove('lit'));
       btn.disabled = true;
       let i = 0;
       // reveal segments one by one so the invisible fixed overhead
@@ -127,7 +135,9 @@
           status.textContent = '看清了吗：橙色「工具结果」独占约 38%，是最容易把目标挤出去的一块';
           return;
         }
-        segs[i].style.width = segs[i].dataset.w + '%';
+        const seg = segs[i];
+        seg.classList.add('revealed');
+        requestAnimationFrame(() => { seg.style.width = seg.dataset.w + '%'; });
         if(rows[i]) rows[i].classList.add('lit');
         i++;
       }, 620);
@@ -228,8 +238,20 @@
     let autoTimer = null;
 
     function renderBlock(b){
+      const block = el('block '+b.cls, '<span class="btag">'+b.tag+'</span>');
       const body = b.lines.join('<br>');
-      return el('block '+b.cls, '<span class="btag">'+b.tag+'</span>'+body);
+
+      // Keep the full examples in the DOM, but collapse genuinely long tool
+      // results so they cannot push the slide controls or footer off-canvas.
+      if(b.lines.length >= 4){
+        const details = document.createElement('details');
+        details.innerHTML = '<summary><span class="detail-label">展开完整内容</span><span class="line-count">'+b.lines.length+' 行</span></summary>'
+          + '<div class="block-details-body">'+body+'</div>';
+        block.appendChild(details);
+      } else {
+        block.insertAdjacentHTML('beforeend', body);
+      }
+      return block;
     }
 
     function render(){
