@@ -287,39 +287,56 @@
       }
     }
 
-    // ---- dynamic mode: transcript grows, tail auto-compacts at threshold ----
-    // Manual stepper too: each click advances one event with its own caption.
+    // ---- dynamic mode: transcript grows; when it crosses the threshold the
+    //      runtime compacts the tail. Two escalation tiers, mapped to the SAME
+    //      four layers shown on the left:
+    //        · first over-limit → cheap LOCAL tail compaction = 换引用 + 清冗余
+    //          截断 (layers 1,2). No model call.
+    //        · grows again, and the old results are ALREADY references so local
+    //          compaction has nothing left to cut → escalate to FULL compaction
+    //          = 记结构化摘要 + 折叠整段历史 (layers 3,4). One model call.
+    //      Each click advances one event and lights the layer(s) it uses.
     let inDyn = false, dynIdx = 0, dynBlocks = [];
     const dynSteps = [
       {kind:'add', block:{cls:'keep',  tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']}, used:30, over:false, cap:'起点：只有用户目标，占用 30%'},
       {kind:'add', block:{cls:'model', tag:'模型', lines:['先看看这个函数 → 调 Read']}, used:34, over:false, cap:'① 模型发起：要调 Read'},
       {kind:'add', block:{cls:'bulky', tag:'工具结果 · Read', lines:['parsePath(): 42 行源码','3 处正则拼接']}, used:48, over:false, cap:'② Read 结果回填 → 34%→48%'},
       {kind:'add', block:{cls:'model', tag:'模型', lines:['改写为 URL 解析 → 调 Edit']}, used:52, over:false, cap:'③ 模型发起：要调 Edit'},
-      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 构建日志', lines:['webpack 218 行输出','vendor 3.2 MiB … 大量 chunk 哈希']}, used:74, over:false, cap:'④ 构建日志回填 → 52%→74%'},
-      {kind:'add', block:{cls:'model', tag:'模型', lines:['跑测试 → 调 Bash']}, used:78, over:false, cap:'⑤ 模型发起：要调 Bash'},
-      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 测试 stdout', lines:['96 行 stdout','1 项失败：空 query 返回 null']}, used:90, over:true, cap:'⑥ 测试结果回填 → 涨到 90%，越过阈值线'},
-      {kind:'compact', used:52, over:false, cap:'⑦ 后台自动压尾端：旧的大结果换成引用 → 90%→52%'},
-      {kind:'add', block:{cls:'model', tag:'模型', lines:['补空值分支 → 再跑，12 项全过 ✓']}, used:60, over:false, cap:'⑧ 接着往下跑 —— 压缩是后台一直在做的，不是你按一下才发生'},
+      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 构建日志', lines:['webpack 218 行输出','vendor 3.2 MiB … 大量 chunk 哈希']}, used:76, over:false, cap:'④ 构建日志回填 → 52%→76%'},
+      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 测试 stdout', lines:['96 行 stdout','1 项失败：空 query 返回 null']}, used:90, over:true, cap:'⑤ 测试结果又回填 → 涨到 90%，越过阈值线'},
+      {kind:'compact', mode:'local', layers:[0,1], used:56, over:false, cap:'⑥ 后台先做最便宜的：换引用 + 清冗余截断（对应左边第 1、2 层，本地、不调模型）→ 旧工具结果收成引用，90%→56%'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['补空值分支 → 调 Edit，再跑测试']}, used:60, over:false, cap:'⑦ 接着往下跑，占用又开始涨'},
+      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 测试 stdout', lines:['又一份 96 行 stdout','12 项全过 ✓']}, used:92, over:true, cap:'⑧ 新的大结果再回填 → 涨回 92%，再次越过阈值线'},
+      {kind:'compact', mode:'full', layers:[2,3], used:38, over:false, cap:'⑨ 旧结果早已是引用、本地压无可压却仍超限 → 升级到全量：调一次模型做结构化摘要 + 折叠整段历史（对应左边第 3、4 层）→ 92%→38%'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['12 项全过，准备交付']}, used:44, over:false, cap:'⑩ 埋个坑：第 9 步那次是独立的模型压缩请求，万一失败，会话不会瘦、反而继续涨到 Prompt too long'},
     ];
+
+    function lightDynLayers(indices){
+      layers.forEach((l,i) => {
+        l.classList.toggle('on', indices.indexOf(i) >= 0);
+        l.classList.remove('done');
+      });
+    }
 
     function enterDynamic(){
       inDyn = true;
       dynIdx = 0;
       dynBlocks = [];
       step = 0;
-      markLayers();
+      lightDynLayers([]);
       list.innerHTML = '';
       setUsed(30);
       meter.classList.remove('over');
       nextBtn.disabled = true;
       autoBtn.textContent = '动态 · 下一步 ▶';
-      status.textContent = '点「下一步」：看上下文一轮轮长起来，逼近阈值线时后台自动压尾端';
+      status.textContent = '点「下一步」：看上下文一轮轮长起来，越过阈值线时后台先做便宜的本地压缩，不够再升级到全量';
     }
 
     function exitDynamic(){
       if(!inDyn) return;
       inDyn = false;
       meter.classList.remove('over');
+      lightDynLayers([]);
       autoBtn.textContent = '▶ 看动态压缩';
     }
 
@@ -331,10 +348,20 @@
       const e = dynSteps[dynIdx++];
       if(e.kind==='add'){
         dynBlocks.push(e.block);
-      } else { // compact: collapse existing bulky results into references
+        lightDynLayers([]);
+      } else if(e.mode==='local'){
+        // cheap local tail compaction: bulky tool results → one-line references
         dynBlocks = dynBlocks.map(b => b.cls==='bulky'
-          ? {cls:'shrunk', tag:b.tag, lines:['↳ 引用（已折叠，可展开） <span class="cut local">尾端压缩</span>']}
+          ? {cls:'shrunk', tag:b.tag, lines:['↳ 引用（已折叠，可展开） <span class="cut local">换引用·去重</span>']}
           : b);
+        lightDynLayers(e.layers);
+      } else { // full compaction: fold everything old into one model-made summary
+        dynBlocks = [
+          {cls:'keep', tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']},
+          {cls:'summary', tag:'折叠摘要 · 一次模型调用', lines:['读 parsePath → 改写为 URL 解析 → 构建通过 → 测试补空 query 分支 → 12 项全过；细节按引用回查 <span class="cut llm">全量压缩</span>']},
+          {cls:'keep', tag:'最近原文', lines:['最后一轮：npm test 全过，准备交付']},
+        ];
+        lightDynLayers(e.layers);
       }
       blocks = dynBlocks;
       render(true);
