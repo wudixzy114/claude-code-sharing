@@ -11,16 +11,17 @@
 <main id="stage" aria-label="Claude Code 架构分享幻灯片">
 
 <!-- ============ 00 封面 ============ -->
-<section class="slide dark active" data-note="轻松开场。今天目标两条：一，把我天天用、却看不见的底层机制讲明白；二，讲完你能用得更好。所以不背功能列表，围着四个我们心里其实没底的问题来讲——循环里到底替我们干了啥、它凭什么能一直聊、这轮授的权换个对话还算不算数、Skill 和 MCP 到底怎么最快接进来。">
+<section class="slide dark active" data-note="轻松开场。今天目标两条：一，把我天天用、却看不见的底层机制讲明白；二，讲完你能用得更好。所以不背功能列表，分五块来讲、围着几个我们心里其实没底的问题——先看整体架构分几层，再讲循环里到底替我们干了啥、它凭什么能一直聊、这轮授的权换个对话还算不算数、Skill 和 Hook/MCP 到底怎么最快接进来。每块最后都落到一页实操应用。">
   <div style="margin-top:80px">
-    <h1>Claude Code 的四块拼图<br><span style="color:#efba4b">循环 · 记忆 · 权限 · 扩展</span></h1>
-    <p class="subtitle">今天不背功能列表。就围着四个我们平时用它、心里其实没底的问题来讲——把底层机制讲清楚，也让你之后能用得更顺。</p>
+    <h1>Claude Code 的五块拼图<br><span style="color:#efba4b">架构 · 循环 · 记忆 · 权限 · 扩展</span></h1>
+    <p class="subtitle">今天不背功能列表。就围着几个我们平时用它、心里其实没底的问题来讲——把底层机制讲清楚，也让你之后能用得更顺。</p>
   </div>
   <div class="four-keys" style="margin-top:54px">
-    <div class="key k1"><div class="num">1</div><b>循环与配置</b><span>都知道它是个循环。可这一圈里，它到底替我们干了哪些看不见的活？配置又在开场定了什么？</span></div>
-    <div class="key k2"><div class="num">2</div><b>记忆</b><span>凭什么能一直聊？窗口里到底装了啥？聊到很长，质量会不会掉？</span></div>
-    <div class="key k3"><div class="num">3</div><b>权限</b><span>这轮授的权，换个对话、换个子代理、换个 Hook，还算数吗？</span></div>
-    <div class="key k4"><div class="num">4</div><b>扩展</b><span>Skill 到底怎么写？官方有没有例子？MCP 怎么最快接进来？</span></div>
+    <div class="key k1"><div class="num">1</div><b>架构总览</b><span>先给一张整体地图：模型只出主意，真把事办了的是外面那层 runtime，分哪几层？</span></div>
+    <div class="key k2"><div class="num">2</div><b>循环与配置</b><span>都知道它是个循环。可这一圈里，它到底替我们干了哪些看不见的活？配置又在开场定了什么？</span></div>
+    <div class="key k3"><div class="num">3</div><b>上下文与记忆</b><span>凭什么能一直聊？窗口里到底装了啥？聊到很长，质量会不会掉？</span></div>
+    <div class="key k4"><div class="num">4</div><b>工具与权限</b><span>这轮授的权，换个对话、换个子代理、换个 Hook，还算数吗？</span></div>
+    <div class="key k5"><div class="num">5</div><b>Hook 与扩展</b><span>Skill 到底怎么写？官方有没有例子？Hook / MCP 怎么最快接进来？</span></div>
   </div>
   <div class="foot"><span>同事间学习交流 · 面向问题来讲</span><span>← → 翻页 · N 讲稿 · F 全屏</span></div>
 </section>
@@ -900,10 +901,11 @@ Reactive compact: <span class="s">summarization returned API error</span>
   <h1>它厉害的地方，不在某一句神秘的 Prompt</h1>
   <div class="quote">而是把模型放进了一套能<span style="color:#4fb5a9">动手</span>、能<span style="color:#efba4b">续航</span>、能<span style="color:#f19b7c">受控</span>、还能<span style="color:#b8a1de">接上我们自己工具</span>的运行时里。</div>
   <div class="four-keys">
-    <div class="key k1"><b>循环与配置</b><span>做一步、看结果、再决定，能恢复也能停；配置在开场就一起定好。</span></div>
-    <div class="key k2"><b>记忆</b><span>把有限的空间，留给下一步真正要用的东西。</span></div>
-    <div class="key k3"><b>权限</b><span>按风险分档，还能说清为什么，换来敢用的自动化。</span></div>
-    <div class="key k4"><b>扩展</b><span>在对的节点，把团队的工具和规范接进来。</span></div>
+    <div class="key k1"><b>架构总览</b><span>模型只出主意，外面那层 runtime 才真把事办了、管好状态和权限。</span></div>
+    <div class="key k2"><b>循环与配置</b><span>做一步、看结果、再决定，能恢复也能停；配置在开场就一起定好。</span></div>
+    <div class="key k3"><b>上下文与记忆</b><span>把有限的空间，留给下一步真正要用的东西。</span></div>
+    <div class="key k4"><b>工具与权限</b><span>按风险分档，还能说清为什么，换来敢用的自动化。</span></div>
+    <div class="key k5"><b>Hook 与扩展</b><span>在对的节点，把团队的工具和规范接进来。</span></div>
   </div>
   <div class="band" style="margin-top:38px;background:#e5f3ee;color:#172026"><b>留个问题一起聊：</b>如果下个季度只能补一样，你觉得哪样最能同时提高成功率、少人工介入、又不失控？</div>
   <div class="foot"><span>谢谢，欢迎拍砖</span><span>35</span></div>
