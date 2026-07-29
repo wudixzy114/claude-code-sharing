@@ -1,7 +1,7 @@
 // ===================================================================
 // SlideAnim — the interactive demos.
 // Demo slide indices (0-based, match onShow): 2=loop, 7=budget,
-// 10=compression, 13=permission. If you reorder slides, fix onShow().
+// 10=compression, 16=permission. If you reorder slides, fix onShow().
 // Each demo is a small state machine driven by clicks; onShow() resets
 // the demo whose slide just became visible.
 // ===================================================================
@@ -374,109 +374,180 @@
   })();
 
   // ============================================================
-  // 4) PERMISSION demo (slide 14) — route 3 commands through gates
+  // 4) PERMISSION demo (slide 16) — a tiny REAL rule engine.
+  //    Left: pick a mode + a settings.json preset. Right: 7 commands
+  //    are ALL re-judged in parallel whenever you change either side.
+  //    Click a command card to see which step it stopped at.
   // ============================================================
   const PermDemo = (function(){
-    const picker = $('#permPicker');
-    if(!picker) return {reset(){}};
-    const cmds = $$('.perm-cmd', picker);
-    const gates = $$('.perm-gate');
-    const arrows = $$('.perm-arrow');
-    const outcome = $('#permOutcome');
-    const runBtn = $('#permRun');
-    const status = $('#permStatus');
+    const modesWrap = $('#pjModes');
+    if(!modesWrap) return {reset(){}};
+    const modeBtns = $$('.pj-opt', modesWrap);
+    const presetBtns = $$('.pj-opt', $('#pjPresets'));
+    const configBox = $('#pjConfig');
+    const cmdsWrap = $('#pjCmds');
+    const status = $('#pjStatus');
 
-    // per-command routing through the 3 gates
-    const routes = {
-      read: {
-        gates: [
-          {state:'pass', v:'只读，范围内 ✓'},
-          {state:'pass', v:'命中 allow 规则'},
-          {state:'', v:'（用不着灰区判断）'},
-        ],
-        stopAt: 1,
-        outcome:{cls:'allow', icon:'✓', text:'<b>直接放行</b>：读文件是只读操作，命中 allow，无需打扰你'},
-      },
-      test: {
-        gates: [
-          {state:'pass', v:'命令合法，目录内 ✓'},
-          {state:'hold', v:'命中 ask 规则'},
-          {state:'', v:'（有明确规则，不进灰区）'},
-        ],
-        stopAt: 1,
-        outcome:{cls:'ask', icon:'？', text:'<b>问你一句</b>：跑命令会改状态；若已配"允许 npm test"，则这一档也能直接放行'},
-      },
-      rm: {
-        gates: [
-          {state:'stop', v:'撞死规则：删根目录'},
-          {state:'', v:'（已被拦下，不再往后）'},
-          {state:'', v:'（不进灰区）'},
-        ],
-        stopAt: 0,
-        outcome:{cls:'deny', icon:'✕', text:'<b>当场拦住</b>：静态校验就撞了红线，根本轮不到问你或让模型判断'},
+    // ---- rule presets (what a settings.json would carry) ----
+    const presets = {
+      empty: { allow:[], ask:[], deny:[] },
+      team: {
+        allow:['Bash(npm test:*)','Bash(ls:*)','Edit(src/**)'],
+        ask:['Bash(git push:*)'],
+        deny:['Read(./.env)','Bash(rm:*)'],
       },
     };
 
-    let cur = 'read';
+    // ---- the commands judged in parallel ----
+    // each: label + a describe() of what the engine sees
+    const commands = [
+      {id:'read',  text:'Read src/parse.ts',      kind:'read',  ro:true,  path:'src/parse.ts'},
+      {id:'ls',    text:'ls -la',                  kind:'bash',  base:'ls', ro:true},
+      {id:'test',  text:'npm test',                kind:'bash',  base:'npm test'},
+      {id:'push',  text:'git push origin main',    kind:'bash',  base:'git push'},
+      {id:'rmfile',text:'rm build/output.js',      kind:'bash',  base:'rm', del:true, path:'build/output.js', inScope:true},
+      {id:'rmroot',text:'rm -rf /',                kind:'bash',  base:'rm', fuse:true},
+      {id:'envcat',text:'echo "$(cat .env)"',      kind:'bash',  base:'echo', reads:'.env', compound:true},
+    ];
 
-    function clearGates(){
-      gates.forEach(g => { g.classList.remove('on','pass','stop','hold'); $('.verdict',g).textContent=''; });
-      arrows.forEach(a => a.classList.remove('on'));
-      outcome.className = 'perm-outcome';
-      outcome.innerHTML = '<span>点"判一下"看它怎么走</span>';
+    // read-only builtins that never need a prompt (unless compounded w/ danger)
+    const READONLY = ['ls','cat','echo','pwd','head','tail','grep','find','wc','which','diff','stat','du'];
+    // fs commands acceptEdits auto-approves inside the working dir
+    const FS_CMDS = ['mkdir','touch','rm','rmdir','mv','cp','sed'];
+
+    let mode = 'default';
+    let preset = 'empty';
+
+    // glob-ish match: rule "Bash(npm test:*)" vs a base string
+    function ruleMatchesBash(rule, base){
+      const m = rule.match(/^Bash\((.+)\)$/); if(!m) return false;
+      let body = m[1];
+      if(body.endsWith(':*')){ const pfx = body.slice(0,-2); return base===pfx || base.startsWith(pfx+' ') || base.startsWith(pfx); }
+      return base===body;
+    }
+    function ruleMatchesRead(rule, path){
+      const m = rule.match(/^Read\((.+)\)$/); if(!m || !path) return false;
+      let body = m[1].replace(/^\.\//,'');
+      return path===body || path.endsWith('/'+body) || path===('./'+body).replace(/^\.\//,'');
     }
 
-    function reset(){
-      cur = 'read';
-      cmds.forEach(c => c.classList.toggle('sel', c.dataset.cmd==='read'));
-      clearGates();
-      status.textContent = '同一套关卡，三条命令结局完全不同';
-      runBtn.disabled = false;
+    // returns {cls, verdict, step, why}
+    function judge(cmd){
+      const rules = presets[preset];
+      const bypass = mode==='bypassPermissions';
+
+      // step 1: hard fuse — rm -rf / ~ , even under bypass
+      if(cmd.fuse) return {cls:'deny', verdict:'拦', step:'熔断', why:'撞死 rm -rf / 熔断 —— 任何模式都拦，bypass 也拦', locked:true};
+
+      // gather the "effective" match targets (compound → each segment)
+      // deny check (any source, any segment) — highest precedence
+      // .env read via cat inside $() counts as a Read(.env)
+      const denyHit = rules.deny.find(r => {
+        if(cmd.kind==='bash' && ruleMatchesBash(r, cmd.base)) return true;
+        if(cmd.reads && ruleMatchesRead(r, cmd.reads)) return true; // echo "$(cat .env)"
+        if(cmd.kind==='read' && ruleMatchesRead(r, cmd.path)) return true;
+        return false;
+      });
+      if(denyHit) return {cls:'deny', verdict:'拦', step:'deny 规则', why:'命中 deny '+denyHit+(cmd.reads?'（内联 $(cat .env) 被拆出来单独判）':'')};
+
+      // step 2: explicit ask rule — locked, even bypass must prompt
+      const askHit = rules.ask.find(r => cmd.kind==='bash' && ruleMatchesBash(r, cmd.base));
+      if(askHit) return {cls:'ask', verdict:'问', step:'ask 规则', why:'命中 ask '+askHit+' —— 带锁，bypass 也照样问你', locked:true};
+
+      // step 3: allow rule
+      const allowHit = rules.allow.find(r => {
+        if(cmd.kind==='bash' && ruleMatchesBash(r, cmd.base)) return true;
+        if(cmd.kind==='read') return true; // reads are trivially allowed
+        return false;
+      });
+      if(allowHit && cmd.kind==='bash') return {cls:'allow', verdict:'放', step:'allow 规则', why:'命中 allow '+allowHit};
+
+      // read-only file read: always fine
+      if(cmd.kind==='read') return {cls:'allow', verdict:'放', step:'只读', why:'只读文件、范围内，直接放'};
+
+      // read-only builtin bash (not compounded with danger)
+      if(cmd.kind==='bash' && READONLY.indexOf(cmd.base)>=0 && !cmd.compound && !cmd.del)
+        return {cls:'allow', verdict:'放', step:'只读内建', why:cmd.base+' 是只读内建命令，直接放'};
+
+      // bypass mode放行 (after the two locked gates above)
+      if(bypass) return {cls:'allow', verdict:'放', step:'bypass', why:'bypass 模式在模式放行这步直接放'};
+
+      // acceptEdits: fs commands inside working dir
+      if(mode==='acceptEdits' && cmd.del && cmd.inScope)
+        return {cls:'allow', verdict:'放', step:'acceptEdits', why:'工作目录内的 fs 命令（'+cmd.base+'），acceptEdits 自动放'};
+
+      // compound with a would-be-read that isn't denied → still just runs echo,
+      // but the inner read is unknown-scope → ask
+      if(cmd.compound) return {cls:'ask', verdict:'问', step:'灰区', why:'含命令替换，拆出的子命令没有明确规则 → 问你'};
+
+      // everything else: gray zone → ask (Manual/acceptEdits non-fs/plan)
+      return {cls:'ask', verdict:'问', step:'灰区', why:'没命中任何规则、非只读 → 普通模式问你一句'};
     }
 
-    cmds.forEach(c => c.addEventListener('click', () => {
-      cur = c.dataset.cmd;
-      cmds.forEach(x => x.classList.toggle('sel', x===c));
-      clearGates();
+    function renderConfig(){
+      const r = presets[preset];
+      const line = (k,arr,cls) => arr.length
+        ? '<span class="k">"'+k+'"</span>: ['+arr.map(x=>'<span class="'+cls+'">"'+x+'"</span>').join(', ')+']'
+        : '<span class="k">"'+k+'"</span>: []';
+      if(preset==='empty'){
+        configBox.innerHTML = '<span class="c">// 没配任何规则，全看模式</span>\n<span class="k">"permissions"</span>: { <span class="k">"allow"</span>:[], <span class="k">"ask"</span>:[], <span class="k">"deny"</span>:[] }';
+      } else {
+        configBox.innerHTML = '<span class="k">"permissions"</span>: {\n  '+line('allow',r.allow,'s')+',\n  '+line('ask',r.ask,'s')+',\n  '+line('deny',r.deny,'cmd')+'\n}';
+      }
+    }
+
+    function renderCmds(){
+      cmdsWrap.innerHTML = '';
+      commands.forEach(cmd => {
+        const v = judge(cmd);
+        const card = el('pj-card '+v.cls, '');
+        card.innerHTML = '<code>'+cmd.text+'</code>'
+          + '<span class="pj-verdict">'+v.verdict+'</span>'
+          + '<span class="pj-why">'+v.step+(v.locked?' 🔒':'')+'</span>';
+        card.addEventListener('click', () => {
+          $$('.pj-card', cmdsWrap).forEach(c => c.classList.remove('open'));
+          card.classList.add('open');
+          status.innerHTML = '<code>'+cmd.text+'</code> → <b>'+v.verdict+'</b>：'+v.why;
+        });
+        cmdsWrap.appendChild(card);
+      });
+    }
+
+    function recompute(){ renderConfig(); renderCmds(); }
+
+    modeBtns.forEach(b => b.addEventListener('click', () => {
+      mode = b.dataset.mode;
+      modeBtns.forEach(x => x.classList.toggle('sel', x===b));
+      recompute();
+      status.innerHTML = '切到 <b>'+b.textContent+'</b> 模式，右边整列一起重算 —— 看哪几条变了、哪几条<b>仍然拦着</b>';
+    }));
+    presetBtns.forEach(b => b.addEventListener('click', () => {
+      preset = b.dataset.preset;
+      presetBtns.forEach(x => x.classList.toggle('sel', x===b));
+      recompute();
+      status.innerHTML = '换成 <b>'+b.textContent+'</b> 规则集，七条命令的结局一起变';
     }));
 
-    function run(){
-      clearGates();
-      const r = routes[cur];
-      let i = 0;
-      runBtn.disabled = true;
-      const tick = () => {
-        if(i > r.stopAt){
-          outcome.className = 'perm-outcome '+r.outcome.cls;
-          outcome.innerHTML = '<b style="font-size:26px">'+r.outcome.icon+'</b><span>'+r.outcome.text+'</span>';
-          runBtn.disabled = false;
-          return;
-        }
-        const g = gates[i];
-        const info = r.gates[i];
-        g.classList.add('on');
-        if(info.state) g.classList.add(info.state);
-        $('.verdict',g).textContent = info.v;
-        if(i>0) arrows[i-1].classList.add('on');
-        i++;
-        setTimeout(tick, 620);
-      };
-      tick();
+    function reset(){
+      mode = 'default'; preset = 'empty';
+      modeBtns.forEach(x => x.classList.toggle('sel', x.dataset.mode==='default'));
+      presetBtns.forEach(x => x.classList.toggle('sel', x.dataset.preset==='empty'));
+      recompute();
+      status.innerHTML = '先切到"团队常用 + Manual"看一遍，再切 bypass 看哪几条<b>仍然拦着</b>；点命令牌看理由';
     }
 
-    runBtn.addEventListener('click', run);
     return {reset};
   })();
 
   // ============================================================
   // wire up onShow -> reset the demo for the slide being shown
-  // slide indices: 2=loop, 7=budget, 10=compress, 13=permission
+  // slide indices: 2=loop, 7=budget, 10=compress, 16=permission
   // ============================================================
   function onShow(index){
     if(index===2) LoopDemo.reset();
     if(index===7) BudgetDemo.reset();
     if(index===10) CompDemo.reset();
-    if(index===13) PermDemo.reset();
+    if(index===16) PermDemo.reset();
   }
 
   window.SlideAnim = {

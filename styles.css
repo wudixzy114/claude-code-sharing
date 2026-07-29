@@ -157,6 +157,37 @@ button{font:inherit}
 .permission .deny{background:var(--red-soft);border-color:var(--red)}
 .permission .auto{background:var(--purple-soft);border-color:var(--purple)}
 
+/* ---------- decision pipeline (slide 13) ---------- */
+.decflow{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+.dstep{position:relative;border:1.5px solid var(--line);border-radius:8px;background:var(--white);padding:14px 15px 14px 46px;min-height:92px}
+.dstep i{position:absolute;left:12px;top:14px;width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--white);font-style:normal;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.dstep b{display:block;font-size:17px;line-height:1.2;margin-bottom:5px}
+.dstep span{font-size:13.5px;line-height:1.35;color:var(--muted)}
+.dstep code{font-family:"SF Mono",Consolas,monospace;font-size:12.5px;background:#eef2ef;padding:1px 5px;border-radius:4px}
+.dstep .tag-out{position:absolute;right:12px;top:13px;font-size:13px;font-weight:700;padding:2px 9px;border-radius:11px}
+.dstep .out-deny{background:var(--red-soft);color:var(--red)}
+.dstep .out-ask{background:var(--yellow-soft);color:#9a6f10}
+.dstep .out-allow{background:var(--teal-soft);color:var(--teal)}
+.dstep .lock{position:absolute;right:12px;bottom:12px;font-size:12px;font-weight:700;color:var(--purple)}
+.dstep.deny-step{border-color:var(--red);border-left:6px solid var(--red)}
+.dstep.ask-step{border-color:var(--yellow);border-left:6px solid var(--yellow)}
+.dstep.allow-step{border-color:var(--teal);border-left:6px solid var(--teal)}
+.dstep.safe-step{border-left:6px solid var(--purple)}
+.dstep.gray-step{border-left:6px solid var(--muted)}
+
+/* ---------- modes matrix note ---------- */
+.modes-matrix td .mnote,.mnote{font-size:14px;font-weight:400;color:var(--muted)}
+.modes-matrix td:first-child{width:150px}
+
+/* ---------- delete tiers (slide 18) ---------- */
+.delrow{display:grid;grid-template-columns:110px 1fr;gap:14px;align-items:start;border:1.5px solid var(--line);border-radius:8px;background:var(--white);padding:14px 16px;margin-bottom:10px}
+.delrow>b{font-size:18px;padding-top:2px}
+.delrow code{font-family:"SF Mono",Consolas,monospace;font-size:15px;font-weight:700;color:var(--ink);display:inline-block;margin-bottom:5px}
+.delrow span{display:block;font-size:15px;line-height:1.45;color:#344248}
+.delrow.deny{border-color:var(--red);border-left:7px solid var(--red);background:var(--red-soft)}
+.delrow.ask{border-color:var(--yellow);border-left:7px solid var(--yellow);background:var(--yellow-soft)}
+.delrow.out{border-left:7px solid var(--muted)}
+
 /* ---------- security lanes ---------- */
 .lanes{display:grid;grid-template-columns:1fr;gap:14px;margin-top:26px}
 .lane{display:grid;grid-template-columns:150px 1fr;align-items:center;border-radius:8px;border:1.5px solid var(--line);background:var(--white);overflow:hidden;min-height:82px}
