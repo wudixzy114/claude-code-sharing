@@ -86,6 +86,48 @@ button{font:inherit}
 .arch .cross div:nth-child(3){border-color:var(--orange)}
 .arch .cross div:nth-child(4){border-color:var(--yellow)}
 
+/* ---------- layered stack (architecture overview) ---------- */
+.larch{display:grid;gap:9px;margin-top:14px}
+.larch .lrow{display:grid;grid-template-columns:150px 1fr;align-items:stretch;border:1.5px solid var(--line);border-radius:8px;background:var(--white);overflow:hidden}
+.larch .lrow .ltag{display:flex;flex-direction:column;justify-content:center;padding:11px 14px;color:var(--white);font-weight:700}
+.larch .lrow .ltag b{font-size:20px;line-height:1.1}
+.larch .lrow .ltag span{font-size:12px;opacity:.9;font-weight:400;margin-top:3px}
+.larch .lrow .lbody{padding:10px 16px;display:flex;flex-direction:column;justify-content:center}
+.larch .lrow .lbody b{font-size:18px}
+.larch .lrow .lbody span{font-size:14px;line-height:1.35;color:var(--muted)}
+.larch .lrow .lbody code{font-family:"SF Mono",Consolas,monospace;font-size:13px;background:#eef2ef;padding:1px 5px;border-radius:4px}
+.larch .l5 .ltag{background:var(--purple)}
+.larch .l4 .ltag{background:var(--yellow);color:#4a370a}
+.larch .l3 .ltag{background:var(--teal)}
+.larch .l3{border-color:var(--teal);border-width:2px}
+.larch .l2 .ltag{background:var(--orange)}
+.larch .l1 .ltag{background:#4a5a60}
+
+/* ---------- entry routing matrix / trust tracks ---------- */
+.trust{display:grid;gap:10px;margin-top:12px}
+.trust .trow{display:grid;grid-template-columns:190px 1fr;gap:14px;align-items:center;border:1.5px solid var(--line);border-left:8px solid var(--line);border-radius:8px;padding:11px 16px;background:var(--white)}
+.trust .trow h4{margin:0;font-size:19px}
+.trust .trow h4 span{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-top:2px}
+.trust .trow p{margin:0;font-size:15px;line-height:1.4;color:#344248}
+.trust .trow code{font-family:"SF Mono",Consolas,monospace;font-size:13px;background:#eef2ef;padding:1px 5px;border-radius:4px}
+.trust .t-core{border-left-color:var(--teal)}
+.trust .t-plugin{border-left-color:var(--yellow)}
+.trust .t-mcp{border-left-color:var(--orange)}
+.trust .t-skill{border-left-color:var(--purple)}
+.trust .t-hook{border-left-color:var(--red)}
+.trust .tbadge{font-size:12px;font-weight:700;border-radius:11px;padding:2px 9px;white-space:nowrap}
+.trust .b-in{background:var(--teal-soft);color:var(--teal)}
+.trust .b-out{background:var(--orange-soft);color:var(--orange)}
+
+/* ---------- startup ladder ---------- */
+.ladder{display:grid;gap:8px;margin-top:12px}
+.ladder .lstep{display:grid;grid-template-columns:70px 1fr 130px;align-items:center;gap:14px;border:1.5px solid var(--line);border-radius:8px;padding:10px 16px;background:var(--white)}
+.ladder .lstep .lv{font-weight:700;font-size:18px;color:var(--teal)}
+.ladder .lstep b{font-size:17px}
+.ladder .lstep p{margin:2px 0 0;font-size:14px;color:var(--muted);line-height:1.35}
+.ladder .lstep .cost{text-align:right;font-family:"SF Mono",Consolas,monospace;font-size:15px;font-weight:700;color:var(--orange)}
+.ladder .lstep code{font-family:"SF Mono",Consolas,monospace;font-size:13px;background:#eef2ef;padding:1px 5px;border-radius:4px}
+
 /* ---------- state machine ---------- */
 .state{display:grid;grid-template-columns:235px 1fr 270px;gap:22px;align-items:center;margin-top:36px}
 .state .terminal{border:2px solid var(--ink);border-radius:8px;padding:20px;background:var(--white);text-align:center}
@@ -174,6 +216,15 @@ button{font:inherit}
 .dstep.allow-step{border-color:var(--teal);border-left:6px solid var(--teal)}
 .dstep.safe-step{border-left:6px solid var(--purple)}
 .dstep.gray-step{border-left:6px solid var(--muted)}
+
+/* ---------- memory auto-extract flow (vertical) ---------- */
+.memflow{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.mstep{position:relative;display:flex;gap:12px;align-items:flex-start;border:1.5px solid var(--line);border-radius:8px;background:var(--white);padding:11px 14px 11px 12px;border-left:6px solid var(--purple)}
+.mstep i{flex:0 0 24px;width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--white);font-style:normal;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.mstep b{display:block;font-size:15.5px;line-height:1.25;margin-bottom:3px}
+.mstep span{font-size:13px;line-height:1.35;color:var(--muted)}
+.mstep code{font-family:"SF Mono",Consolas,monospace;font-size:12px;background:#eef2ef;padding:1px 5px;border-radius:4px}
+.memk-matrix td .mnote{display:block;margin-top:2px;font-size:12.5px}
 
 /* ---------- modes matrix note ---------- */
 .modes-matrix td .mnote,.mnote{font-size:14px;font-weight:400;color:var(--muted)}
