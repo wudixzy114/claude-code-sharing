@@ -505,6 +505,76 @@ Reactive compact: <span class="s">summarization returned API error</span>
   <div class="foot"><span>Hook 是"到点必执行"的确定性规则，适合做治理；别拿它当模型的替代品</span><span>18</span></div>
 </section>
 
+<!-- ============ 18-A Hook 详解：是什么/为什么/权限边界 ============ -->
+<section class="slide" data-note="这页集中回答几个关于 Hook 的常见疑问，别念表，挑重点讲。一，Hook 是干什么的：在流程固定节点上插一段你自己的命令，确定性执行——到点必跑，不靠模型判断。二，为什么要用：模型可能忘记或选择不做某件事，但 Hook 是运行时强制触发的，适合做治理和硬约束。三，能实现什么特点：确定性执行、生命周期拦截、PreToolUse 能返回 allow/deny/ask、能往上下文注入内容、改完热重载。四，什么时候需要：需要每次都必须发生的事——提交前 lint、改完自动格式化、守住密钥、危险命令拦截、审计留痕。右边是全场最要强调的权限边界：Hook 不被沙箱限制，以你账户的完整权限直接跑,没有二次确认弹窗,Claude Code 不替你拦——你自己负全责。PreToolUse 虽然跑在权限检查之前、能影响决策,但 allow 只是免掉弹窗,盖不过静态 deny,尤其组织 managed 的 deny 永远赢。硬约束要用权限系统,不是 Hook。">
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">Hook · 详解</div></div>
+  <h2>Hook 到底是干什么的？为什么要用它？</h2>
+  <div class="grid two" style="margin-top:14px">
+    <div>
+      <table class="matrix">
+        <tr><th>你会问的</th><th>一句话回答</th></tr>
+        <tr><td><b>是干什么的？</b></td><td>在流程固定节点插一段<b>你自己的命令</b>，到点必跑</td></tr>
+        <tr><td><b>为什么要用？</b></td><td>模型可能<b>忘记或选择不做</b>；Hook 是<b>确定性</b>触发，不靠它判断</td></tr>
+        <tr><td><b>什么时候需要？</b></td><td>需要"<b>每次都必须发生</b>"的事：见下方场景</td></tr>
+      </table>
+      <div class="code-cap" style="margin-top:14px">能实现的四个特点</div>
+      <div class="band"><b>① 确定性执行</b>（到点必跑）　<b>② 生命周期拦截</b>（PreToolUse 可 allow/deny/ask）<br><b>③ 能往上下文注入内容</b>（如把 git 状态喂给模型）　<b>④ 改完热重载</b>，不用重启</div>
+      <div class="hint"><b>典型场景：</b>提交前 lint · 改完自动格式化 · 守住 <code>.env</code> 密钥 · <code>rm</code> 二次确认 · 审计留痕。</div>
+    </div>
+    <div>
+      <div class="code-cap">重点：Hook 本身有权限限制吗？受 Claude Code 管吗？</div>
+      <div class="band red-band"><b>不受限——这是最容易踩的坑。</b><br>Hook 以<b>你账户的完整权限</b>直接跑，<b>没有二次确认弹窗</b>，Claude Code <b>不沙箱、不替你拦</b>。写进去的命令你自己<b>负全责</b>——一条 <code>rm -rf</code> 一样会执行。</div>
+      <div class="band orange-band" style="margin-top:12px"><b>它和权限系统的关系：</b><br><code>PreToolUse</code> 跑在<b>权限检查之前</b>，能返回 allow/deny/ask 影响决策——但 <code>allow</code> 只是<b>免掉弹窗</b>，<b>盖不过静态 <code>deny</code></b>（尤其组织 managed 的 deny 永远赢）。</div>
+      <div class="hint"><b>结论：</b>要做<b>硬约束</b>用权限系统（deny 规则）；Hook 适合做<b>确定性动作与治理</b>，别拿它当安全边界。</div>
+    </div>
+  </div>
+  <div class="foot"><span>Hook = 你亲手写、到点必跑的命令；能力很大，安全责任也全在你</span><span>18-A</span></div>
+</section>
+
+<!-- ============ 18-B Hook 实操：怎么加 ============ -->
+<section class="slide" data-note="这页直接回答：我想给自己的 Claude Code 加 Hook，具体怎么操作。三步。第一步选作用域、打开对应的 settings.json：只给自己用写 ~/.claude、给团队共享写项目 .claude 并提交 git、只本机本项目写 .local。顺带提优先级：managed 最高，然后 local、project、user，权限相关是合并不是覆盖。第二步按 hooks → 事件名 → matcher → command 的结构写，给一个能直接抄的 PreToolUse 例子：匹配 Bash、命中 rm 就 ask 二次确认。第三步保存即生效,热重载不用重启;想看已经注册了哪些 Hook 就输 /hooks——注意它是只读浏览器,只能看不能在里面加,加还是得编辑文件或让 Claude 帮你写。最后提醒 exit code 语义:0 成功、2 阻断并把 stderr 回给模型,以及别在 Hook 里跑没验证过的命令。">
+  <div class="top"><div class="kicker">四、扩展</div><div class="chapter">Hook · 实操</div></div>
+  <h2>怎么给我的 Claude Code 加 Hook？三步</h2>
+  <p class="subtitle">直接回答"具体怎么操作"：<b>选作用域 → 写结构 → 存盘即生效</b>。全程就是编辑一个 <code>settings.json</code>。</p>
+  <div class="grid two" style="margin-top:12px">
+    <div>
+      <div class="code-cap"><b>第 1 步</b>　选作用域，打开对应的 settings.json</div>
+      <div class="code"><span class="c"># 只给自己用（所有项目）</span>
+~/.claude/settings.json
+<span class="c"># 给团队共享（提交 git，进版本库）</span>
+.claude/settings.json
+<span class="c"># 只本机本项目（不提交，覆盖上面）</span>
+.claude/settings.local.json</div>
+      <div class="hint">优先级高到低：<b>managed（组织）</b> → local → project → user；权限规则是<b>合并</b>不是整个覆盖。</div>
+      <div class="code-cap" style="margin-top:14px"><b>第 2 步</b>　按结构写：事件 → matcher → command</div>
+      <div class="code"><span class="k">"hooks"</span>: {
+  <span class="k">"PreToolUse"</span>: [{
+    <span class="k">"matcher"</span>: <span class="s">"Bash"</span>,
+    <span class="k">"hooks"</span>: [{ <span class="k">"type"</span>: <span class="s">"command"</span>,
+      <span class="k">"command"</span>: <span class="s">"my-guard.sh"</span> }]
+  }]
+}</div>
+      <div class="hint"><code>my-guard.sh</code> 从 stdin 读到 <code>tool_input</code>；命中 <code>rm</code> 就 <b>exit 2</b> 阻断（stderr 会回给模型），否则 <b>exit 0</b> 放行。</div>
+    </div>
+    <div>
+      <div class="code-cap"><b>第 3 步</b>　保存即生效（热重载，不用重启）</div>
+      <div class="band"><b>存盘就生效。</b>下一次触发该事件时，你的命令就会跑起来——改错了改回来也是当场生效。</div>
+      <div class="code-cap" style="margin-top:14px">想看已经注册了哪些 Hook？</div>
+      <div class="code"><span class="cmd">/hooks</span>   <span class="c"># 会话里直接输</span></div>
+      <div class="band orange-band" style="margin-top:10px"><b>注意：<code>/hooks</code> 是只读浏览器。</b>只能<b>查看</b>已注册的事件与命令，<b>不能在里面加</b>——要加还是回去编辑 settings.json（或直接让 Claude 帮你写进去）。</div>
+      <div class="code-cap" style="margin-top:14px">退出码语义（决定放行还是阻断）</div>
+      <table class="matrix">
+        <tr><th>exit code</th><th>含义</th></tr>
+        <tr><td><code>0</code></td><td>成功放行；stdout 可回填上下文</td></tr>
+        <tr><td><code>2</code></td><td><b>阻断</b>，stderr 内容回给模型</td></tr>
+        <tr><td>其它非 0</td><td>非阻断（只记录，不拦）</td></tr>
+      </table>
+      <div class="hint red"><b>再强调一次：</b>Hook 以你的完整权限跑、无确认——别把没验证过的命令写进去。</div>
+    </div>
+  </div>
+  <div class="foot"><span>加 Hook = 编辑 settings.json 的三步；/hooks 只能看，加靠改文件</span><span>18-B</span></div>
+</section>
+
 <!-- ============ 19 Skill 实操 ============ -->
 <section class="slide" data-note="直接回答 Skill 到底怎么写、官方有没有示例、怎么最快接。最小结构就是一个目录加一个 SKILL.md，目录名就是命令名。frontmatter 里只有 description 建议必填。关键机制是渐进式披露：平时只把名字和 description 放进上下文，body 只在被调用时才载入，所以长参考资料几乎零成本——这正好呼应记忆章那页注入机制。官方示例在 cookbooks 和官方 marketplace。最快上手就是 mkdir 加写文件，热加载。">
   <div class="top"><div class="kicker">四、扩展</div><div class="chapter">19 / 24</div></div>
