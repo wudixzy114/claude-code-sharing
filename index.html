@@ -229,7 +229,7 @@ hooks 必须以 use 前缀命名。</div>
 
 
 <!-- ============ 应用页 · 二、循环与配置 ============ -->
-<section class="slide application-slide" data-note="应用页——按审核要求，给真配置样例和真命令，不再只给文字卡。左边一份可直接抄的 .claude/settings.json：model、permissions、hooks 三块最常用，注意 model 改完要重启、权限和 hook 热更新。右边给能当场敲的命令：Shift+Tab 切模式、/config 核对生效值、# 一句话把规矩写进 CLAUDE.md、--permission-mode 启动参数。落脚：配置分层写、按生效方式记住哪些要重启。这些样例字段随版本会变，以 /config 实际显示为准。">
+<section class="slide application-slide" data-note="应用页——按审核要求，给真配置样例和真命令，不再只给文字卡。左边一份可直接抄的 .claude/settings.json：model、permissions、hooks 三块最常用，注意 model 改完要重启、权限和 hook 热更新。右边给能当场敲的命令：Shift+Tab 切模式、/config 核对生效值、/memory 浏览编辑各层 CLAUDE.md 并挑作用域、--permission-mode 启动参数。落脚：配置分层写、按生效方式记住哪些要重启。这些样例字段随版本会变，以 /config 实际显示为准。">
   <div class="top"><div class="kicker">二、循环与配置</div><div class="chapter">08 / 40</div></div>
   <h2>应用：把规矩写进配置文件（给你可抄的样例）</h2>
   <p class="subtitle">讲完循环、配置、条件规则，落到手上：一份能直接抄的 <code>.claude/settings.json</code>，加几条当场能敲的命令。</p>
@@ -257,7 +257,7 @@ hooks 必须以 use 前缀命名。</div>
         <div class="cmdrow"><code>Shift+Tab</code><span>循环切换权限模式（Manual / acceptEdits / plan）</span></div>
         <div class="cmdrow"><code>/config</code><span>核对当前生效值——不确定哪层盖了哪层，先看它</span></div>
         <div class="cmdrow"><code>/permissions</code><span>看每条权限规则来自哪个文件</span></div>
-        <div class="cmdrow"><code># 一句话</code><span>把一条规矩随手写进 CLAUDE.md，下次开会话还在</span></div>
+        <div class="cmdrow"><code>/memory</code><span>浏览 / 编辑各层 CLAUDE.md，自己挑写哪个作用域</span></div>
         <div class="cmdrow"><code>claude --permission-mode plan</code><span>本次启动就进 plan（只读探索）</span></div>
       </div>
       <div class="band purple-band" style="margin-top:14px"><b>本节落地：</b>配置<b>分层写</b>（managed / 项目 / 个人），按<b>生效方式</b>记住哪些热更新、哪些要重启（<code>model</code>、<code>outputStyle</code> 要新会话）。</div>
@@ -417,7 +417,7 @@ hooks 必须以 use 前缀命名。</div>
 
 
 <!-- ============ 10 质量会不会掉 + 实操 ============ -->
-<section class="slide" data-note="这页回答两个使用者最关心的问题：聊太长会不会变差？我能怎么手动管？先说结论：会——官方明说很长的对话里早期指令可能被丢。触发点：接近有效窗口时自动压缩。用真实日志讲：effectiveWindow=180000 这条线、Reactive compact、summarization returned API error——那次压缩请求失败了，会话就继续涨，直到下一次输入报 Prompt too long。所以别全交给它自动。给四条能当场用的命令。落地建议：重要结论用 # 写进 CLAUDE.md，长任务里主动 /compact 带关注点，比等它自动压更准。">
+<section class="slide" data-note="这页回答两个使用者最关心的问题：聊太长会不会变差？我能怎么手动管？先说结论：会——官方明说很长的对话里早期指令可能被丢。触发点：接近有效窗口时自动压缩。用真实日志讲：effectiveWindow=180000 这条线、Reactive compact、summarization returned API error——那次压缩请求失败了，会话就继续涨，直到下一次输入报 Prompt too long。所以别全交给它自动。给四条能当场用的命令。落地建议：重要结论直接说「记进 CLAUDE.md」（或用 /memory 挑作用域），长任务里主动 /compact 带关注点，比等它自动压更准。">
   <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">13 / 40</div></div>
   <h2>聊太长会变差吗？会。那我能怎么管？</h2>
   <p class="subtitle">上下文接近有效窗口就会自动压缩，压缩就有可能丢细节。别全交给它自动，手上这几条命令要会用。</p>
@@ -440,15 +440,16 @@ Reactive compact: <span class="s">summarization returned API error</span>
         <div class="cmdrow"><code>/context</code><span>看窗口被谁占了、还剩多少，先诊断再动手</span></div>
         <div class="cmdrow"><code>/compact [关注点]</code><span>手动压一次，还能指定重点保留哪块，比等它自动压更可控</span></div>
         <div class="cmdrow"><code>/clear</code><span>清空当前对话历史，但保留 CLAUDE.md 里的项目记忆</span></div>
-        <div class="cmdrow"><code># 一句话</code><span>随手把一条规则/结论写进记忆文件，下次开会话还在</span></div>
+        <div class="cmdrow"><code>/memory</code><span>浏览 / 编辑各层 CLAUDE.md，自己挑写进哪个文件</span></div>
       </div>
-      <div class="code-cap" style="margin-top:12px"><code>#</code> 命令长什么样（直接在输入框敲）</div>
-      <div class="code"><span class="cmd"># 这个仓库测试用 pnpm test，不是 npm</span>
-<span class="c"># ↑ 回车后它会问你写进哪个文件：</span>
-<span class="c">#   1) ./CLAUDE.md（团队共享）</span>
-<span class="c">#   2) ~/.claude/CLAUDE.md（个人全局）</span>
-<span class="c">#   3) ./CLAUDE.local.md（只你自己）</span></div>
-      <div class="band purple-band" style="margin-top:12px"><b>落地建议：</b>长任务别指望它自动记住关键结论。重要的用 <code>#</code> 写进 CLAUDE.md；快到上限时优先手动 <code>/compact</code> 并带上关注点。</div>
+      <div class="code-cap" style="margin-top:12px">怎么让它「记住」一条规矩</div>
+      <div class="code"><span class="c"># 方式一：直接说人话，它写进自动记忆</span>
+<span class="cmd">这个仓库测试用 pnpm test，不是 npm，记一下</span>
+<span class="c"># 想进 CLAUDE.md 就明说：</span>
+<span class="cmd">把这条加到 CLAUDE.md</span>
+<span class="c"># 方式二：/memory 打开各层 CLAUDE.md 自己挑作用域：</span>
+<span class="c">#   ./CLAUDE.md（团队共享） / ~/.claude（个人全局） / .local（只你）</span></div>
+      <div class="band purple-band" style="margin-top:12px"><b>落地建议：</b>长任务别指望它自动记住关键结论。重要的<b>直接说「记进 CLAUDE.md」</b>，或用 <code>/memory</code> 挑作用域写；快到上限时优先手动 <code>/compact</code> 并带上关注点。</div>
     </div>
   </div>
   <div class="foot"><span>你手动介入的那几下，往往比它自动压得更准</span><span>13</span></div>
@@ -456,7 +457,7 @@ Reactive compact: <span class="s">summarization returned API error</span>
 
 
 <!-- ============ 14 记忆有几种·存哪 ============ -->
-<section class="slide slide-14-density" data-note="新增记忆页（审核点名的大缺口：记忆＝持久化）。开场先破一个误解：记忆不只有一个 CLAUDE.md。列清楚到底有几种、各存在哪、谁写的、跨会话还在不在、什么时候载入。左边一张对照表五行：①CLAUDE.md 指令记忆——你手写、进文件、每次启动拼进系统提示（分层细节第7页已讲）；②# 快捷写入——回车弹三选一，把一句话追加进某个 CLAUDE.md；③会话记忆 Session Memory——后台模型自动生成 summary.md，压缩/续接时用；④自动记忆 AutoMem / 团队记忆 TeamMem——memory 目录里自动生成的文件，作为动态「记忆」段注入，有 40000 字上限；⑤Agent/Scoped 记忆——.claude/agent-memory 下 user/project/local 三档，子代理跨会话攒，project 档还能进 git 团队共享。右边给一个真实的自动记忆目录长相：MEMORY.md 只是索引，真正内容在一个个带 frontmatter 的 .md 文件里，按 type 分 user/feedback/project/reference。收尾一句：你唯一直接管的是 CLAUDE.md 和 #，其余大多是它自己攒的。资料边界要讲清：Session/Agent/AutoMem 出自逆向材料；# 和 MEMORY.md 自动记忆以本机实际运行为准。">
+<section class="slide slide-14-density" data-note="新增记忆页（审核点名的大缺口：记忆＝持久化）。开场先破一个误解：记忆不只有一个 CLAUDE.md。列清楚到底有几种、各存在哪、谁写的、跨会话还在不在、什么时候载入。左边一张对照表五行：①CLAUDE.md 指令记忆——你手写、进文件、每次启动拼进系统提示（分层细节第7页已讲）；②说人话 / /memory——直接说「记进 CLAUDE.md」它就写，或用 /memory 打开各层 CLAUDE.md 自己挑作用域；③会话记忆 Session Memory——后台模型自动生成 summary.md，压缩/续接时用；④自动记忆 AutoMem / 团队记忆 TeamMem——memory 目录里自动生成的文件，作为动态「记忆」段注入，有 40000 字上限；⑤Agent/Scoped 记忆——.claude/agent-memory 下 user/project/local 三档，子代理跨会话攒，project 档还能进 git 团队共享。右边给一个真实的自动记忆目录长相：MEMORY.md 只是索引，真正内容在一个个带 frontmatter 的 .md 文件里，按 type 分 user/feedback/project/reference。收尾一句：你能直接管的是 CLAUDE.md（手写或让它帮你写），其余大多是它自己攒的。资料边界要讲清：Session/Agent/AutoMem 出自逆向材料；/memory 和 MEMORY.md 自动记忆以本机实际运行为准。注意：老版本那个「输入 # 一句话弹三选一写进 CLAUDE.md」的快捷命令，当前版本官方文档里已经没有了，别再讲，改成说人话或 /memory。">
   <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">14 / 40</div></div>
   <h2>记忆不只一个 CLAUDE.md——到底有几种、存哪</h2>
   <p class="subtitle">「记忆」就是把东西持久化，下次开会话还在。它其实有好几路：有你手写的，有它自己在后台攒的。先分清谁是谁。</p>
@@ -465,12 +466,12 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <table class="matrix memk-matrix">
         <tr><th>种类</th><th>存在哪</th><th>谁写</th><th>跨会话</th></tr>
         <tr><td><b>CLAUDE.md</b> 指令记忆</td><td>项目/用户/企业分层文件<br><span class="mnote">见第 7 页</span></td><td>你手写</td><td>在</td></tr>
-        <tr><td><code>#</code> 快捷写入</td><td>回车选：<code>./CLAUDE.md</code> / <code>~/.claude</code> / <code>.local</code></td><td>你一句话</td><td>在</td></tr>
+        <tr><td>说人话 / <code>/memory</code></td><td>说「记进 CLAUDE.md」或用 <code>/memory</code> 挑：<code>./CLAUDE.md</code> / <code>~/.claude</code> / <code>.local</code></td><td>你一句话</td><td>在</td></tr>
         <tr><td>会话记忆<br><span class="mnote">Session Memory</span></td><td>后台自动生成 <code>summary.md</code></td><td>模型<br>(fork 子代理)</td><td>压缩/续接时接着用</td></tr>
         <tr><td>自动记忆 AutoMem<br>团队记忆 TeamMem</td><td>memory 目录自动生成的文件</td><td>系统/团队</td><td>在<br><span class="mnote">≤40000 字</span></td></tr>
         <tr><td>Agent/Scoped 记忆</td><td><code>.claude/agent-memory[-local]/&lt;type&gt;/</code><br>user/project/local 三档</td><td>子代理攒</td><td>在<br><span class="mnote">project 档进 git</span></td></tr>
       </table>
-      <div class="band purple-band" style="margin-top:12px"><b>你能直接管的只有前两路</b>（CLAUDE.md、<code>#</code>）；后三路是它自己在后台攒。要它稳稳「记住」一条规矩，最靠谱还是 <code>#</code> 写进 CLAUDE.md。</div>
+      <div class="band purple-band" style="margin-top:12px"><b>你能直接管的只有第一路</b>（CLAUDE.md，手写或让它帮你写）；后几路是它自己在后台攒。要它稳稳「记住」一条规矩，最靠谱还是<b>说「记进 CLAUDE.md」</b>或用 <code>/memory</code> 挑作用域写。</div>
     </div>
     <div>
       <div class="code-cap">自动记忆目录长相：<code>MEMORY.md</code> 只是索引，正文在分文件里</div>
@@ -490,7 +491,7 @@ Reactive compact: <span class="s">summarization returned API error</span>
       <div class="hint" style="margin-top:10px"><b>分 type：</b>user（他是谁）/ feedback（怎么配合）/ project（在忙啥）/ reference（东西在哪）。索引常驻上下文，正文按相关性才读。</div>
     </div>
   </div>
-  <div class="foot"><span>Session/Agent/AutoMem 取自逆向材料；<code>#</code> 与 MEMORY.md 自动记忆以本机实际运行为准，随版本变</span><span>14</span></div>
+  <div class="foot"><span>Session/Agent/AutoMem 取自逆向材料；<code>/memory</code> 与 MEMORY.md 自动记忆以本机实际运行为准，随版本变</span><span>14</span></div>
 </section>
 
 
@@ -533,7 +534,7 @@ Reactive compact: <span class="s">summarization returned API error</span>
   <div class="grid three" style="margin-top:34px">
     <div class="card"><div class="label">01 · 先诊断再动手</div><p><b>/context</b><br>看窗口被谁占了、还剩多少；橙色工具结果那块最容易膨胀，先盯它。</p></div>
     <div class="card"><div class="label">02 · 手动压 + 带关注点</div><p><b>/compact [关注点]</b><br>它触发的是"全量压缩"那一类（调一次模型做摘要 + 边界），比等自动压更可控；<code>/clear</code> 清历史保 CLAUDE.md。</p></div>
-    <div class="card"><div class="label">03 · 关键结论写进记忆</div><p><b># 一句话</b><br>长任务里重要约束别只说一次，用 <code>#</code> 写进 CLAUDE.md，跨会话还在。</p></div>
+    <div class="card"><div class="label">03 · 关键结论写进记忆</div><p><b>说「记进 CLAUDE.md」/ /memory</b><br>长任务里重要约束别只说一次，直接让它写进 CLAUDE.md（或 <code>/memory</code> 挑作用域），跨会话还在。</p></div>
   </div>
   <div class="band purple-band" style="margin-top:30px"><b>本节落地：</b><code>/compact</code> 背后调的是压缩页里"全量压缩 compact"那一类（一次模型调用）；微压缩是运行时自动做的，你手动碰不到。</div>
   <div class="foot"><span>应用页 · 上下文与记忆 · 呼应压缩页两类做法</span><span>16</span></div>
@@ -1009,7 +1010,7 @@ Reactive compact: <span class="s">summarization returned API error</span>
 
 
 <!-- ============ 33 自定义总结：遇到什么问题加哪种机制 ============ -->
-<section class="slide" data-note="重写页（原第31/33 被批胡扯）。这页是全场扩展章的总收口：了解了这么多机制，到底该怎么自定义我的 Claude Code？核心一句——先看你遇到的是哪类问题，再对应加哪种机制，别为了接而接。逐行讲这张对照表：①它老忘项目规矩/重复解释同一套流程→写进 CLAUDE.md 或打成 Skill；②要连外部系统(数据库/工单/知识库)→接 MCP；③有件事必须每次都发生(格式化/lint/守密钥)→挂 Hook；④它乱跑或老拿危险命令问你烦→配权限规则 allow/ask/deny + 切模式；⑤长任务聊着聊着丢了早期结论→用 # 写记忆 + 主动 /compact 带关注点。右边给一个"什么时候升级作用域"的判断：只你自己用就放 ~/.claude 或 .local；团队都要用就提交进 .claude/ 走 git；跨项目复用就打成 Plugin。收尾强调：每加一个都有认证/权限/上下文噪音成本，先接高频、少歧义、可审计的。">
+<section class="slide" data-note="重写页（原第31/33 被批胡扯）。这页是全场扩展章的总收口：了解了这么多机制，到底该怎么自定义我的 Claude Code？核心一句——先看你遇到的是哪类问题，再对应加哪种机制，别为了接而接。逐行讲这张对照表：①它老忘项目规矩/重复解释同一套流程→写进 CLAUDE.md 或打成 Skill；②要连外部系统(数据库/工单/知识库)→接 MCP；③有件事必须每次都发生(格式化/lint/守密钥)→挂 Hook；④它乱跑或老拿危险命令问你烦→配权限规则 allow/ask/deny + 切模式；⑤长任务聊着聊着丢了早期结论→写进 CLAUDE.md（说人话让它写 / /memory 挑作用域） + 主动 /compact 带关注点。右边给一个"什么时候升级作用域"的判断：只你自己用就放 ~/.claude 或 .local；团队都要用就提交进 .claude/ 走 git；跨项目复用就打成 Plugin。收尾强调：每加一个都有认证/权限/上下文噪音成本，先接高频、少歧义、可审计的。">
   <div class="top"><div class="kicker">五、Hook 与扩展</div><div class="chapter">34 / 40</div></div>
   <h2>那到底怎么自定义我的 Claude Code？</h2>
   <p class="subtitle">机制讲完了，收个口：<b>先看你遇到的是哪类问题，再对应加哪种机制</b>——别为了接而接。这张表基本覆盖日常。</p>
@@ -1021,7 +1022,7 @@ Reactive compact: <span class="s">summarization returned API error</span>
         <tr><td>要连外部系统（数据库 / 工单 / 知识库）</td><td>接 <b>MCP</b></td></tr>
         <tr><td>有件事<b>必须每次都发生</b>（格式化 / lint / 守密钥）</td><td>挂 <b>Hook</b></td></tr>
         <tr><td>它乱跑，或老拿危险命令问得你烦</td><td>配<b>权限规则</b> allow/ask/deny + 切模式</td></tr>
-        <tr><td>长任务聊着聊着丢了早期结论</td><td><b><code>#</code> 写记忆</b> + 主动 <code>/compact</code> 带关注点</td></tr>
+        <tr><td>长任务聊着聊着丢了早期结论</td><td><b>写进 CLAUDE.md</b>（说人话 / <code>/memory</code>） + 主动 <code>/compact</code> 带关注点</td></tr>
       </table>
       <div class="band purple-band" style="margin-top:14px"><b>每加一个都有成本</b>（认证、权限、上下文噪音）。顺序：<b>先接高频、少歧义、可审计的</b>；发布、生产变更这类影响大的，最后再接。</div>
     </div>
