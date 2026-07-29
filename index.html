@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code 的四块拼图</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="anim.css">
+</head>
+<body>
+<main id="stage" aria-label="Claude Code 架构分享幻灯片">
+
+<!-- ============ 00 封面 ============ -->
+<section class="slide dark active" data-note="轻松开场。今天目标两条：一，把我天天用、却看不见的底层机制讲明白；二，讲完你能用得更好。所以不背功能列表，围着四个我们心里其实没底的问题来讲——循环里到底替我们干了啥、它凭什么能一直聊、这轮授的权换个对话还算不算数、Skill 和 MCP 到底怎么最快接进来。">
+  <div style="margin-top:80px">
+    <h1>Claude Code 的四块拼图<br><span style="color:#efba4b">循环 · 记忆 · 权限 · 扩展</span></h1>
+    <p class="subtitle">今天不背功能列表。就围着四个我们平时用它、心里其实没底的问题来讲——把底层机制讲清楚，也让你之后能用得更顺。</p>
+  </div>
+  <div class="four-keys" style="margin-top:54px">
+    <div class="key k1"><div class="num">1</div><b>循环</b><span>都知道它是个循环。可这一圈里，它到底替我们干了哪些看不见的活？</span></div>
+    <div class="key k2"><div class="num">2</div><b>记忆</b><span>凭什么能一直聊？窗口里到底装了啥？聊到很长，质量会不会掉？</span></div>
+    <div class="key k3"><div class="num">3</div><b>权限</b><span>这轮授的权，换个对话、换个子代理、换个 Hook，还算数吗？</span></div>
+    <div class="key k4"><div class="num">4</div><b>扩展</b><span>Skill 到底怎么写？官方有没有例子？MCP 怎么最快接进来？</span></div>
+  </div>
+  <div class="foot"><span>同事间学习交流 · 面向问题来讲</span><span>← → 翻页 · N 讲稿 · F 全屏</span></div>
+</section>
+
+<!-- ============ 01 一句话框架 ============ -->
+<section class="slide" data-note="先把最核心的一句话讲清楚：模型本身只会生成下一步该说什么、该调哪个工具。真正把这句话变成动作、再把结果喂回去的，是外面那层运行时。别把 Agent 理解成一个更大更聪明的 Prompt。">
+  <div class="top"><div class="kicker">总览</div><div class="chapter">01 / 24</div></div>
+  <h2>先说结论：模型只出主意，跑起来靠外面那层</h2>
+  <p class="subtitle">你让它"重构 parsePath 并跑测试"，它会走一圈又一圈：出主意 → 动手 → 看结果 → 再出主意。你感觉它在"连续干活"，其实是这个圈在转。</p>
+  <div class="flow">
+    <div class="node purple-node"><div class="n-title">你的目标</div><div class="n-copy">重构这个函数，<br>别改坏，<br>跑测试证明没问题</div></div>
+    <div class="node teal"><div class="n-title">模型出主意</div><div class="n-copy">看现在手里有什么信息，<br>决定先读文件还是先改</div></div>
+    <div class="node orange-node"><div class="n-title">工具动手</div><div class="n-copy">真去读代码、改文件、<br>跑测试命令</div></div>
+    <div class="node yellow-node"><div class="n-title">拿回结果</div><div class="n-copy">改动、报错、测试日志<br>都成了新的线索</div></div>
+    <div class="node teal"><div class="n-title">接着做 / 收工</div><div class="n-copy">还没弄完就再来一轮，<br>弄完了就汇报</div></div>
+  </div>
+  <div class="grid three" style="margin-top:36px">
+    <div class="card"><div class="label">模型负责</div><div class="big accent">想下一步</div><p>看当前手里的信息，说出一段话，或者提出要调某个工具。仅此而已。</p></div>
+    <div class="card"><div class="label">运行时负责</div><div class="big orange">真把事办了</div><p>存状态、执行工具、处理报错、管好上下文和权限。这些模型自己做不了。</p></div>
+    <div class="card"><div class="label">你看到的</div><div class="big purple">它在连续干活</div><p>它会一直"做下去"，而不是只丢给你一段建议然后停在那。</p></div>
+  </div>
+  <div class="foot"><span>接下来每一节，都是在给这个圈加一道必要的约束</span><span>01</span></div>
+</section>
+
+<!-- ============ 02 五层架构 ============ -->
+<section class="slide" data-note="给大家一张地图，方便后面定位。不用记模块名，记住职责分层就行。重点讲一个区别：会话状态是跨很多轮一直在的，单次调用只管这一轮。分开之后，重试、恢复、多个入口才不会互相打架。">
+  <div class="top"><div class="kicker">总览</div><div class="chapter">02 / 24</div></div>
+  <h2>把它拆成五层看，不神秘</h2>
+  <p class="subtitle">没有什么"神秘的智能大脑"，就是分工清楚的几层。你从哪个入口进来都走同一套。</p>
+  <div class="arch">
+    <div class="box entry"><b>入口</b><span>你从命令行、IDE 插件、SDK 还是网页进来，后面都一样</span></div>
+    <div class="box ui"><b>界面和会话</b><span>把过程一个字一个字显示出来，管你的输入、中断和历史</span></div>
+    <div class="box engine"><b>核心：那个循环</b><span>会话状态：这一路的消息、用量、被你拒过的操作、缓存<br>单次调用：搭好上下文、问一次模型、跑工具、接着来或者结束</span></div>
+    <div class="box tools"><b>工具</b><span>读写文件、跑 Shell、搜索、派子任务、连外部系统——都要先过校验和取消</span></div>
+    <div class="box cross"><b>横着贯穿的</b><div>上下文和记忆</div><div>配置和指令</div><div>权限和安全</div><div>Hook / MCP / 插件</div></div>
+  </div>
+  <div class="band" style="margin-top:20px"><b>最该记住这一点：</b>会话状态是跨很多轮一直存着的，单次调用只管当前这一轮。就因为分开了，中途压缩、失败重试、开子任务才不会把整盘搞乱。</div>
+  <div class="foot"><span>不用记模块名，记住谁负责什么</span><span>02</span></div>
+</section>
+
+<!-- ============ 03 循环动画 ============ -->
+<section class="slide" data-note="第一个专题，也是全场地基。别念字，直接点下一步让它一轮一轮跑。左边高亮当前走到哪，右边消息记录会一条条长出来——这就是它的上下文，越攒越长。跑到测试通过就停。强调：每一轮模型看到的，都是右边这坨不断变长的东西；准备、查权限、收拾结果这些活对你是不可见的。">
+  <div class="top"><div class="kicker">一、循环</div><div class="chapter">03 / 24</div></div>
+  <h2>点一下，看它一轮一轮把活干完</h2>
+  <div class="demo loopdemo">
+    <div class="ring" id="loopRing">
+      <div class="circle"></div>
+      <div class="rstep r1" data-step="0"><b>1 准备</b><span>装好项目规矩、可用工具和现在的进度（你看不见）</span></div>
+      <div class="rstep r2" data-step="1"><b>2 问模型</b><span>把手里的信息给它，它说下一步干嘛</span></div>
+      <div class="rstep r3" data-step="2"><b>3 跑工具</b><span>先过权限，再真去读、改、跑（查权限你看不见）</span></div>
+      <div class="rstep r4" data-step="3"><b>4 收结果</b><span>塞回记录前先截断、脱敏（你看不见）</span></div>
+      <div class="rstep r5" data-step="4"><b>5 判断</b><span>还没完就再来一轮，完了就停</span></div>
+      <div class="center"><div class="rnd" id="loopRound">第 0 轮</div><div class="task">重构 parsePath</div><div class="verdict" id="loopVerdict">点"下一步"开始</div></div>
+    </div>
+    <div class="transcript">
+      <div class="thead">模型每一轮看到的，就是这坨记录 —— 它只会越来越长</div>
+      <div class="tlist" id="loopLog"></div>
+    </div>
+  </div>
+  <div class="demo-bar" style="margin-top:16px">
+    <button class="demo-btn" id="loopNext">下一步 ▶</button>
+    <button class="demo-btn ghost" id="loopReset">重来</button>
+    <span class="demo-status" id="loopStatus">看左边高亮走到哪一步，右边记录怎么变长</span>
+  </div>
+  <div class="foot"><span>灰字标的那三步（准备 / 查权限 / 收拾结果），是它替你干、你却看不见的活</span><span>03</span></div>
+</section>
+
+<!-- ============ 04 状态机 ============ -->
+<section class="slide" data-note="很多人以为里面有棵很复杂的决策树。其实主干特别朴素：准备、问、处理，有工具就跑完接着来，没有就结束。真正花功夫的是那几个岔路——上下文满了、工具挂了、你按了取消。可靠的意思是：错误落进一个看得见、能恢复、能停下的状态，而不是让模型永远别出错。">
+  <div class="top"><div class="kicker">一、循环</div><div class="chapter">04 / 24</div></div>
+  <h2>这一圈里它到底替我们干了啥？功夫全在岔路上</h2>
+  <p class="subtitle">循环主干简单到你会失望。真正的工程质量，在"接着做、拐回来、停下来"这三种岔路怎么处理——这些平时对我们是不透明的。</p>
+  <div class="state">
+    <div class="terminal"><b>开始</b><span>你的输入 / 一个子任务 / 接着上次的会话</span></div>
+    <div class="middle">
+      <div class="state-node"><b>准备</b><span>先看预算够不够<br>不够就先压缩</span></div>
+      <div class="state-node"><b>问一次模型</b><span>流式吐出来<br>是文字还是要调工具</span></div>
+      <div class="state-node"><b>跑完塞回去</b><span>工具结果<br>作为新消息加进历史</span></div>
+    </div>
+    <div class="terminal"><b>结束</b><span>做完 / 你取消 / 预算用光 / 遇到修不了的错</span></div>
+  </div>
+  <div class="grid four" style="margin-top:44px">
+    <div class="card"><div class="label">接着做</div><p><b>模型要调工具</b><br>跑完把结果带进下一轮，再问一次。</p></div>
+    <div class="card"><div class="label">拐回来</div><p><b>上下文太长了</b><br>先压缩腾出空间，再重新问模型。</p></div>
+    <div class="card"><div class="label">纠偏</div><p><b>工具或测试挂了</b><br>把报错整理好丢给模型，让它判断怎么办。</p></div>
+    <div class="card"><div class="label">停下来</div><p><b>你或策略叫停</b><br>把取消信号传下去，把正在跑的东西释放掉。</p></div>
+  </div>
+  <div class="band yellow-band" style="margin-top:20px"><b>一句话：</b>可靠靠的是"出了错也能被看见、能恢复、能干净地停下"。这就是 while(true) 和"真能干活的循环"的区别。</div>
+  <div class="foot"><span>while(true) 不等于没有边界</span><span>04</span></div>
+</section>
+
+<!-- ============ 05 工具管线 ============ -->
+<section class="slide" data-note="模型说要调工具，不等于立刻执行。中间要过一串关：认出来、补默认值、校验、查权限、要不要问你、真跑、把结果收拾干净、写进历史。重点讲第七关——结果收拾：太长要截断，太短也要给个明确信号，别让模型以为没结果。给团队的启示：内部工具别只给一个万能 shell，要做成语义清楚的动作。">
+  <div class="top"><div class="kicker">一、循环</div><div class="chapter">05 / 24</div></div>
+  <h2>"调工具"不是直接执行，是过一条流水线</h2>
+  <p class="subtitle">模型只是提了个意图。运行时要把这个意图，变成一个有边界、能回放、出了事能查的操作。第 7 关"收拾结果"，直接决定你的上下文会不会被撑爆。</p>
+  <div class="pipeline">
+    <div class="p"><i>1</i><b>认出来</b><span>是哪个工具，参数是什么</span></div>
+    <div class="p"><i>2</i><b>补齐</b><span>补上工作目录、超时、默认值</span></div>
+    <div class="p"><i>3</i><b>校验</b><span>类型、路径、命令、能碰的范围</span></div>
+    <div class="p"><i>4</i><b>查规则</b><span>命中放行 / 要问 / 禁止</span></div>
+    <div class="p"><i>5</i><b>要授权</b><span>影响大的动作，先问你一句</span></div>
+    <div class="p"><i>6</i><b>真跑</b><span>隔离、超时、能取消、控并发</span></div>
+    <div class="p hi"><i>7</i><b>收拾结果</b><span>太长截断、太短给信号、脱敏、结构化</span></div>
+    <div class="p"><i>8</i><b>归档</b><span>写进会话、事件流和操作记录</span></div>
+  </div>
+  <div class="grid two" style="margin-top:30px">
+    <div class="band orange-band"><b>改文件这一类：</b>要管路径范围、几处同时改会不会冲突、写入是不是原子的、能不能回滚。</div>
+    <div class="band purple-band"><b>跑 Shell 这一类：</b>要管在哪个目录跑、命令什么意思、超时、取消、输出太长怎么截。</div>
+  </div>
+  <div class="foot"><span>好工具表达的是业务动作——发布、检索、变更，而不是"帮我执行任意命令"</span><span>05</span></div>
+</section>
