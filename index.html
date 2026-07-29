@@ -246,16 +246,15 @@
   <div class="foot"><span>能无限膨胀的只有工具结果这一块；把它管住，窗口就稳了一大半</span><span>08</span></div>
 </section>
 
-<!-- ============ 09 四层压缩动画（全场重点） ============ -->
-<section class="slide" data-note="全场最重要的一页，慢慢讲。手动模式：点压一层，看右边那一块构建日志被一层层削。第一层换引用——大块正文存盘、原处只留一行引用路径；第二层清冗余截断——3 条重复 WARNING 合并成 1 条、超长尾巴截断（这两层特意做成对同一块日志的不同修剪，让大家看清区别，都是本地确定性、不花钱、标绿）。第三层把整个过程整理成一条结构化摘要、第四层折叠整段历史——这两层各要调一次模型（标黄），就是真实日志里那个独立压缩请求，失败会导致会话继续涨到 Prompt too long。每压一层上面进度条明显往下掉：88→72→60→38→22。讲完手动，点看动态压缩：这个也是手动一步步点的，看上下文一轮轮长起来、逼近阈值线，越过后后台自动把尾端旧结果换成引用、占用回落——强调压缩是后台动态发生的，不是你按一下才有。">
+<!-- ============ 09 压缩机制动画（全场重点） ============ -->
+<section class="slide" data-note="全场最重要的一页，慢慢讲。先纠正一个我自己以前的糊涂说法：不是笼统的四层，源码里其实是两类压法 + 一个触发器。左边：第一类微压缩 microcompact，就地把旧工具结果去重、截断、换引用（限 Read/Bash/Grep 等几类工具的结果），全程本地、不调模型，这是最常发生的；第二类全量压缩 compact，才调一次模型，把旧历史压成摘要 + 打边界 + 保留最近几轮原文 + 回填关键文件，这个较少触发。第三块 autoCompact 不是一种压法，是触发器，盯着有效窗口减 13k 的阈值、时间、以及请求太长被拒（PTL）来决定何时压。手动模式：点压一步，先看微压缩把那块构建日志去重截断换引用（88→52%，不调模型），再点一步升级到全量压缩、调一次模型压成摘要（52→30%，最近一轮原文保留）。讲完手动点看动态压缩，也是手动一步步点：上下文一轮轮涨，autoCompact 越过阈值先做便宜的微压缩、占用回落；又涨、旧结果已被微压过压无可压、仍超限，才升级到全量 LLM 压缩。强调两点：一是大多数时候只做本地微压缩，全量较少触发；二是全量那次是独立模型请求，失败会导致会话继续涨到 Prompt too long——这是我本地日志里真见过的。">
   <div class="top"><div class="kicker">二、记忆</div><div class="chapter">09 / 24</div></div>
-  <h2>四层压缩：哪几层本地就能做，哪几层要调模型？</h2>
+  <h2>压缩其实是两类做法 + 一个触发器，只有一类调模型</h2>
   <div class="demo compdemo">
     <div class="comp-layers" id="compLayers">
-      <div class="comp-layer" data-layer="0"><b>1 换引用</b><span>大块结果留个路径，要用再展开</span><span class="tag-local">本地 · 不花钱</span></div>
-      <div class="comp-layer" data-layer="1"><b>2 清冗余截断</b><span>重复、超长的去重、截断、合并</span><span class="tag-local">本地 · 不花钱</span></div>
-      <div class="comp-layer" data-layer="2"><b>3 记结构化摘要</b><span>把做过的事整理成一条记录</span><span class="tag-llm">要调一次模型</span></div>
-      <div class="comp-layer" data-layer="3"><b>4 折叠整段历史</b><span>最贵，最后才动：整段压成摘要+近期原文</span><span class="tag-llm">要调一次模型</span></div>
+      <div class="comp-layer" data-layer="0"><b>微压缩 microcompact</b><span>旧工具结果就地截断 / 换引用 / 去重清除；缓存版走 cache_edits 删除还保住缓存命中</span><span class="tag-local">本地 · 不调模型 · 最常做</span></div>
+      <div class="comp-layer" data-layer="1"><b>全量压缩 compact</b><span>旧历史压成一段摘要 + 打边界 + 保留最近几轮原文 + 回填关键文件</span><span class="tag-llm">调一次模型 · 较少触发</span></div>
+      <div class="comp-layer" data-layer="2"><b>autoCompact 触发器</b><span>盯阈值(有效窗口−13k)/时间/请求被拒(PTL)，决定何时压：先微压，压完还超才升级全量</span><span class="tag-trigger">只管何时压</span></div>
     </div>
     <div class="comp-right">
       <div class="meter" id="compMeter">
@@ -267,18 +266,18 @@
         </div>
       </div>
       <div class="ctx">
-        <div class="chead">当前上下文里都装了啥（点"压一层"手动压四层 / 或点"看动态压缩"一步步看后台压尾端）</div>
+        <div class="chead">当前上下文里都装了啥（点"压一步"看微压缩→全量两类做法 / 或点"看动态压缩"看 autoCompact 何时触发）</div>
         <div class="ctx-list" id="ctxList"></div>
       </div>
     </div>
   </div>
   <div class="demo-bar" style="margin-top:14px">
-    <button class="demo-btn" id="compNext">压一层 ▼</button>
+    <button class="demo-btn" id="compNext">压一步 ▼</button>
     <button class="demo-btn" id="compAuto">▶ 看动态压缩</button>
     <button class="demo-btn ghost" id="compReset">重来</button>
-    <span class="demo-status" id="compStatus">从最便宜、最不丢信息的做起，实在不行才动整段历史</span>
+    <span class="demo-status" id="compStatus">两类做法：本地微压缩(不调模型) → 不够再升级全量压缩(调一次模型)；autoCompact 只管何时压</span>
   </div>
-  <div class="foot"><span>绿=本地确定性处理，黄=要调一次模型；那次模型请求要是失败，会话就会继续涨到 Prompt too long（占用百分比为实测示例，随版本变）</span><span>09</span></div>
+  <div class="foot"><span>绿=本地微压缩(不调模型)，黄=全量压缩(调一次模型)，紫=触发器；全量那次模型请求若失败，会话会继续涨到 Prompt too long（占用百分比为实测示例，随版本变）</span><span>09</span></div>
 </section>
 
 <!-- ============ 10 质量会不会掉 + 实操 ============ -->

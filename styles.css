@@ -126,9 +126,10 @@ button{font:inherit}
 .priostack .ptier:nth-child(5){border-left-color:var(--purple)}
 
 /* ---------- compression layer tags (slide 09) ---------- */
-.comp-layer .tag-local,.comp-layer .tag-llm{display:inline-block;margin-top:6px;font-size:12px;font-weight:700;border-radius:11px;padding:2px 9px}
+.comp-layer .tag-local,.comp-layer .tag-llm,.comp-layer .tag-trigger{display:inline-block;margin-top:6px;font-size:12px;font-weight:700;border-radius:11px;padding:2px 9px}
 .comp-layer .tag-local{background:var(--teal-soft);color:var(--teal);border:1px solid var(--teal)}
 .comp-layer .tag-llm{background:var(--yellow-soft);color:#9a6f10;border:1px solid var(--yellow)}
+.comp-layer .tag-trigger{background:var(--purple-soft);color:var(--purple);border:1px solid var(--purple)}
 
 /* ---------- prompt hierarchy ---------- */
 .hierarchy{display:grid;grid-template-columns:1fr 115px 1fr;gap:22px;align-items:center;margin-top:30px}
