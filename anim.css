@@ -116,7 +116,7 @@
 .tool-eg .code{font-size:15px;line-height:1.7}
 
 /* ========== compression demo (slide 9) ========== */
-.compdemo{display:grid;grid-template-columns:250px 1fr;gap:30px;align-items:start;margin-top:14px}
+.compdemo{display:grid;grid-template-columns:250px 1fr;gap:30px;align-items:start;margin-top:14px;padding-top:22px}
 .comp-layers{display:grid;gap:10px}
 .comp-layer{position:relative;border:2px solid var(--line);border-radius:10px;padding:12px 15px;background:var(--white);transition:all .3s ease;opacity:.55}
 .comp-layer b{display:block;font-size:18px}
@@ -140,7 +140,7 @@
 .meter .cap .used-label{color:var(--orange)}
 
 .meter.over{box-shadow:0 0 0 3px var(--red)}
-#compMeter{position:relative;overflow:visible;margin-top:22px}
+#compMeter{position:relative;overflow:visible}
 #compMeter .track{overflow:hidden;border-radius:8px}
 .meter .thresh{position:absolute;top:-2px;bottom:-2px;left:86%;width:2px;background:var(--red);z-index:3}
 .meter .thresh:after{content:"阈值线";position:absolute;top:-19px;left:-22px;font-size:12px;font-weight:700;color:var(--red);white-space:nowrap}

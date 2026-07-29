@@ -1,7 +1,7 @@
 // ===================================================================
 // SlideAnim — the interactive demos.
-// Demo slide indices (0-based, match onShow): 2=loop, 7=budget,
-// 10=compression, 16=permission. If you reorder slides, fix onShow().
+// Demo slide indices (0-based, match onShow): 5=loop, 9=budget,
+// 12=compression, 19=permission. If you reorder slides, fix onShow().
 // Each demo is a small state machine driven by clicks; onShow() resets
 // the demo whose slide just became visible.
 // ===================================================================
@@ -226,10 +226,13 @@
       return block;
     }
 
+    // .ctx-list has no overflow; the scrolling container is its parent .ctx.
+    const scroller = list.closest('.ctx') || list;
     function render(scrollBottom){
       list.innerHTML = '';
       blocks.forEach(b => list.appendChild(renderBlock(b)));
-      if(scrollBottom) list.scrollTop = list.scrollHeight;
+      // wait for layout so scrollHeight reflects the just-added blocks
+      if(scrollBottom) requestAnimationFrame(() => { scroller.scrollTop = scroller.scrollHeight; });
     }
 
     function setUsed(used){
@@ -541,13 +544,13 @@
 
   // ============================================================
   // wire up onShow -> reset the demo for the slide being shown
-  // slide indices: 2=loop, 7=budget, 10=compress, 16=permission
+  // slide indices: 5=loop, 9=budget, 12=compress, 19=permission
   // ============================================================
   function onShow(index){
-    if(index===2) LoopDemo.reset();
-    if(index===7) BudgetDemo.reset();
-    if(index===10) CompDemo.reset();
-    if(index===16) PermDemo.reset();
+    if(index===5) LoopDemo.reset();
+    if(index===9) BudgetDemo.reset();
+    if(index===12) CompDemo.reset();
+    if(index===19) PermDemo.reset();
   }
 
   window.SlideAnim = {
