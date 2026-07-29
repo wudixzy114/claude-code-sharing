@@ -226,6 +226,23 @@ button{font:inherit}
 .mstep code{font-family:"SF Mono",Consolas,monospace;font-size:12px;background:#eef2ef;padding:1px 5px;border-radius:4px}
 .memk-matrix td .mnote{display:block;margin-top:2px;font-size:12.5px}
 
+/* ---------- gray-zone classifier steps ---------- */
+.clf{display:flex;flex-direction:column;gap:7px}
+.clf-row{display:flex;gap:10px;align-items:baseline;border:1.5px solid var(--line);border-radius:7px;background:var(--white);padding:8px 11px;border-left:5px solid var(--teal)}
+.clf-row span:last-child{font-size:13px;line-height:1.35;color:var(--muted)}
+.clf-row .clf-n{flex:0 0 68px;font-size:12.5px;font-weight:700;color:var(--ink)}
+.clf-row code{font-family:"SF Mono",Consolas,monospace;font-size:12px;background:#eef2ef;padding:1px 5px;border-radius:4px}
+.clf-row.danger{border-left-color:var(--red)}
+.clf-row.danger .clf-n{color:var(--red)}
+
+/* ---------- scope ladder (personal/team/plugin) ---------- */
+.scope-ladder{display:flex;flex-direction:column;gap:9px}
+.scl{display:flex;gap:11px;align-items:flex-start;border:1.5px solid var(--line);border-radius:8px;background:var(--white);padding:10px 13px;border-left:6px solid var(--teal)}
+.scl-n{flex:0 0 60px;font-size:12.5px;font-weight:700;color:var(--ink);padding-top:1px}
+.scl b{display:block;font-size:14.5px;line-height:1.25;margin-bottom:3px}
+.scl span{font-size:12.5px;line-height:1.35;color:var(--muted)}
+.scl code{font-family:"SF Mono",Consolas,monospace;font-size:12px;background:#eef2ef;padding:1px 5px;border-radius:4px}
+
 /* ---------- modes matrix note ---------- */
 .modes-matrix td .mnote,.mnote{font-size:14px;font-weight:400;color:var(--muted)}
 .modes-matrix td:first-child{width:150px}
