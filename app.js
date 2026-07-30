@@ -25,6 +25,22 @@ function show(n){
 
 function toggleNotes(){ notes.classList.toggle('open'); }
 
+// ---------- 聚光灯：高亮鼠标所在范围 ----------
+const spotlight = document.getElementById('spotlight');
+let spotOn = false;
+function setSpot(on){
+  spotOn = on;
+  spotlight.classList.toggle('on', spotOn);
+  document.body.classList.toggle('spot', spotOn);
+  document.getElementById('spot-btn').classList.toggle('on', spotOn);
+}
+function toggleSpot(){ setSpot(!spotOn); }
+document.addEventListener('pointermove', e => {
+  spotlight.style.left = e.clientX + 'px';
+  spotlight.style.top = e.clientY + 'px';
+});
+document.getElementById('spot-btn').addEventListener('click', toggleSpot);
+
 document.getElementById('prev').addEventListener('click', () => show(index-1));
 document.getElementById('next').addEventListener('click', () => show(index+1));
 document.getElementById('notes-btn').addEventListener('click', toggleNotes);
@@ -39,6 +55,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Home') show(0);
   if (e.key === 'End') show(slides.length-1);
   if (e.key.toLowerCase() === 'n') toggleNotes();
+  if (e.key.toLowerCase() === 'h') toggleSpot();
   if (e.key.toLowerCase() === 'f') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
 });
 
