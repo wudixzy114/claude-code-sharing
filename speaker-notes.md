@@ -150,11 +150,11 @@
 
 接上页那条 echo $(cat .env) 为什么被拦。Bash 命令不是拿整行去撞规则，是先做静态校验再逐段匹配，讲四件事。
 
-第一，剥壳：timeout/time/nice/nohup/xargs 这些包装前缀先被剥掉，拿里面真正的命令去判——想用 timeout rm -rf / 绕过？剥完照样撞熔断。第二，拆复合：&&、||、|、;、以及 $() <() 命令替换都会拆成一个个子命令，每段单独过规则，**任何一段不过整条不过**——这就是 echo $(cat .env) 被拦的原因，echo 无害但内联 cat .env 命中了 deny。第三，只读内建直接放：ls cat echo pwd head tail grep find wc which diff stat 加只读 git，不用问，但一旦和危险段复合就不算数。第四，通配符讲边界：Bash(ls:*) 的 :* 是前缀，ls -la 能命中；Bash(ls) 不带 :* 只精确匹配 ls；Read/Edit 的 deny 还会顺带盖住 cat/head/tail/sed 这些等价读法。收尾：常见绕过花招基本都被这套拆解堵掉了。
+第一，剥壳：timeout/time/nice/nohup/xargs 这些包装前缀先被剥掉，拿里面真正的命令去判——想用 timeout rm -rf / 绕过？剥完照样撞熔断。第二，拆复合：&&、||、|、;、以及 $() <() 命令替换都会拆成一个个子命令，每段单独过规则，**任何一段不过整条不过**——这就是 echo $(cat .env) 被拦的原因，echo 无害但内联 cat .env 命中了 deny。第三，只读内建直接放：ls cat echo pwd head tail grep find wc which diff stat 加只读 git，不用问，但一旦和危险段复合就不算数。第四，通配符讲边界：星号可以出现在命令任意位置——Bash(ls *) 匹配 ls -la 但不匹配 lsof，空格是词边界；Bash(git * main) 星号在中间，git checkout main、git push origin main 都命中。不带星号的 Bash(ls) 只精确匹配 ls；Read/Edit 的 deny 还会顺带盖住 cat/head/tail/sed 这些等价读法。收尾：常见绕过花招基本都被这套拆解堵掉了。
 
 ## 18 "删根目录"拦得住，"删一个文件"呢（2.5 分钟）
 
-专门回答那个具体问题。把"删除"和"路径"讲透。删除分三档：第一档硬熔断，rm -rf / 和 rm -rf ~，任何模式都拦、连 bypass 都拦，v2.1.208 起把 $()、<() 包起来的变体也一起拦——注意只熔断"注定毁灭级"，不是所有 rm。第二档删具体文件（rm build/output.js），本身不撞熔断，看模式：Manual 问、acceptEdits 因为是工作目录内 fs 命令直接放、bypass 放；你若写了 deny Bash(rm:*) 就任何模式都拦。第三档删到工作目录外或受保护目录，任何非 bypass 模式都不自动放。
+专门回答那个具体问题。把"删除"和"路径"讲透。删除分三档：第一档硬熔断，rm -rf / 和 rm -rf ~，任何模式都拦、连 bypass 都拦，v2.1.208 起把 $()、<() 包起来的变体也一起拦——注意只熔断"注定毁灭级"，不是所有 rm。第二档删具体文件（rm build/output.js），本身不撞熔断，看模式：Manual 问、acceptEdits 因为是工作目录内 fs 命令直接放、bypass 放；你若写了 deny Bash(rm *) 就任何模式都拦。第三档删到工作目录外或受保护目录，任何非 bypass 模式都不自动放。
 
 下半讲路径校验：所有文件操作路径先规整成绝对路径再判，还会跟符号链接较劲——allow 要求软链接和它指向的目标都匹配才放，deny 只要沾一边就拦，堵 TOCTOU。受保护目录 .git .claude(除 worktrees) .ssh .vscode .idea 等，写入只有 bypass 自动放。落脚：删除危不危险，系统看的是"目标是什么、在不在范围、什么模式"，不是命令长什么样。
 
@@ -162,7 +162,7 @@
 
 专门回答大家最疑惑的：这轮授的权，换个场景还算不算数。逐格看这张表：
 
-Bash 的"不再问"会写进项目的 settings.local.json，**同一个仓库跨会话都记得**；但文件编辑的"不再问"只当次有效，重开就没了。主代理的权限，子代理**默认继承**，可以在子代理 frontmatter 用 tools / disallowedTools / permissionMode 收窄。Hook 跑在权限判断之前，PreToolUse 能返回 allow/deny/ask，但盖不过静态硬 deny。右边是自定义：粒度能精确到命令前缀 Bash(npm test:*)、目录 Edit(src/**)、甚至参数。拿不准就 /permissions 看当前生效哪条。
+Bash 的"不再问"会写进项目的 settings.local.json，**同一个仓库跨会话都记得**；但文件编辑的"不再问"只当次有效，重开就没了。主代理的权限，子代理**默认继承**，可以在子代理 frontmatter 用 tools / disallowedTools / permissionMode 收窄。Hook 跑在权限判断之前，PreToolUse 能返回 allow/deny/ask，但盖不过静态硬 deny。右边是自定义：粒度能精确到命令前缀 Bash(npm test *)、目录 Edit(src/**)、甚至参数。拿不准就 /permissions 看当前生效哪条。
 
 ## 20 安全和好用不是二选一（1.5 分钟）
 

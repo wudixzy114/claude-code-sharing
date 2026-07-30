@@ -285,8 +285,8 @@ hooks 必须以 use 前缀命名。</div>
       <div class="code"><span class="k">{</span>
   <span class="k">"model"</span>: <span class="s">"claude-opus-4-5"</span>,   <span class="c">// 改完要重启</span>
   <span class="k">"permissions"</span>: {              <span class="c">// 改完热更新</span>
-    <span class="k">"allow"</span>: [<span class="s">"Bash(npm test:*)"</span>],
-    <span class="k">"ask"</span>:   [<span class="s">"Bash(git push:*)"</span>],
+    <span class="k">"allow"</span>: [<span class="s">"Bash(npm test *)"</span>],
+    <span class="k">"ask"</span>:   [<span class="s">"Bash(git push *)"</span>],
     <span class="k">"deny"</span>:  [<span class="s">"Read(./.env)"</span>]
   },
   <span class="k">"hooks"</span>: {                    <span class="c">// 改完热重载</span>
@@ -319,8 +319,8 @@ hooks 必须以 use 前缀命名。</div>
   <p class="subtitle">以 20 万 token 的窗口为例，点一下按进入顺序填充：启动注入的固定开销、对话产生的内容、运行时回填的工具结果。</p>
   <div class="budgetdemo">
     <div class="budget-bar"><div class="track" id="budgetTrack">
-      <div class="bseg sys"    data-w="12"><span>系统提示词 ~4.2K</span></div>
-      <div class="bseg tools"  data-w="14"><span>内置工具定义 ~10K</span></div>
+      <div class="bseg sys"    data-w="12"><span>系统提示词 ~485</span></div>
+      <div class="bseg tools"  data-w="14"><span>内置工具定义 ~38.6K</span></div>
       <div class="bseg proj"   data-w="10"><span>CLAUDE.md ~2K</span></div>
       <div class="bseg msg"    data-w="14"><span>你的话+模型回复</span></div>
       <div class="bseg result" data-w="38"><span>工具结果：代码/日志/搜索</span></div>
@@ -333,8 +333,8 @@ hooks 必须以 use 前缀命名。</div>
       <span class="lg"><span class="sw reserve"></span>为下一次输出预留</span>
     </div>
     <div class="budget-rows" id="budgetRows">
-      <div class="brow b-sys"><div class="bk">系统提示词<span class="pct">~4.2K</span><span class="bwho boot">启动注入</span></div><div class="btip">平台规则与运行边界，在你输入前已进入上下文；官方示例约 4,200 token。</div></div>
-      <div class="brow b-tools"><div class="bk">内置工具定义<span class="pct">~10K</span><span class="bwho boot">启动注入</span></div><div class="btip">Read/Edit/Bash 等工具的名称、参数、约束，始终在场；这块无官方精确值，此处按量级估。</div></div>
+      <div class="brow b-sys"><div class="bk">系统提示词<span class="pct">~485</span><span class="bwho boot">启动注入</span></div><div class="btip">平台规则与运行边界，在你输入前已进入上下文；本机实测约 485 token（0.2%）。</div></div>
+      <div class="brow b-tools"><div class="bk">内置工具定义<span class="pct">~38.6K</span><span class="bwho boot">启动注入</span></div><div class="btip">Read/Edit/Bash 等工具的名称、参数、约束，始终在场；本机实测约 38.6K token（19.3%），是启动开销里最大的一块。</div></div>
       <div class="brow b-proj"><div class="bk">CLAUDE.md<span class="pct">~2K</span><span class="bwho boot">启动注入</span></div><div class="btip">启动时读取的项目规则与长期记忆；官方示例项目级约 1,800 token。</div></div>
       <div class="brow b-msg"><div class="bk">你的话 + 模型回复<span class="pct">~14%</span><span class="bwho conversation">对话产生</span></div><div class="btip">人提交任务，模型逐轮生成判断与回复。</div></div>
       <div class="brow b-result"><div class="bk">工具结果<span class="pct">~38%</span><span class="bwho runtime">动态回填</span></div><div class="btip">工具执行后写回当前会话；大日志最容易快速膨胀。</div></div>
@@ -673,11 +673,11 @@ paste-cache/  <span class="c">// 文件名 = 内容 SHA256 前 16 位（去重�
   <div class="decflow">
     <div class="dstep"><i>0</i><div><b>中止检查</b><span>这轮被取消了吗</span></div></div>
     <div class="dstep deny-step"><i>1</i><div><b>命中 deny 规则</b><span>整条命令撞死规则 → 当场拦</span></div><em class="tag-out out-deny">拦</em></div>
-    <div class="dstep ask-step"><i>2</i><div><b>命中 ask 规则</b><span>如 <code>Bash(git push:*)</code></span></div><em class="lock">🔒 bypass 也拦</em><em class="tag-out out-ask">问</em></div>
+    <div class="dstep ask-step"><i>2</i><div><b>命中 ask 规则</b><span>如 <code>Bash(git push *)</code></span></div><em class="lock">🔒 bypass 也拦</em><em class="tag-out out-ask">问</em></div>
     <div class="dstep"><i>3</i><div><b>单工具自校验</b><span>Bash 拆子命令 / 查路径 / 验 sed；文件工具查路径安全</span></div><em class="tag-out out-deny">可判死</em></div>
     <div class="dstep safe-step"><i>4</i><div><b>受保护路径安全检查</b><span><code>.git</code> <code>.claude</code> <code>.ssh</code> 等</span></div><em class="lock">🔒 bypass 也拦</em><em class="tag-out out-ask">问</em></div>
     <div class="dstep"><i>5</i><div><b>模式放行</b><span>bypassPermissions 到这一步直接放</span></div><em class="tag-out out-allow">放</em></div>
-    <div class="dstep allow-step"><i>6</i><div><b>命中 allow 规则</b><span>如 <code>Bash(npm test:*)</code></span></div><em class="tag-out out-allow">放</em></div>
+    <div class="dstep allow-step"><i>6</i><div><b>命中 allow 规则</b><span>如 <code>Bash(npm test *)</code></span></div><em class="tag-out out-allow">放</em></div>
     <div class="dstep gray-step"><i>7</i><div><b>剩下的灰区</b><span>普通模式问你；auto 模式交给分类器判</span></div><em class="tag-out out-ask">问 / 判</em></div>
   </div>
   <div class="grid two" style="margin-top:20px;gap:16px;align-items:start">
@@ -878,7 +878,7 @@ max_tokens: <span class="s">4096</span>
 
 
 <!-- ============ 17 Bash 命令怎么被拆开判 ============ -->
-<section class="slide" data-note="上页那条 echo $(cat .env) 为什么会被拦？这页拆给大家看：Bash 命令不是拿整行去撞规则，是先做一串静态校验再逐段匹配。讲四件事。第一，剥壳：timeout/time/nice/nohup/xargs 这些包装前缀会被先剥掉，拿里面真正的命令去判——所以你别想用 timeout rm -rf / 绕过。第二，拆复合：&&、||、|、; 、以及 $(...) <(...) 命令替换，都会被拆成一个个子命令，每一段都要单独过规则，任何一段不过整条就不过——这就是 echo $(cat .env) 被拦的原因，echo 本身无害，但内联的 cat .env 命中了 deny Read(.env)。第三，只读内建直接放：ls cat echo pwd head tail grep find wc which diff stat 这些加只读的 git，不用问——但注意，一旦和危险段复合就不算数了。第四，通配符匹配讲边界：allow Bash(ls:*) 的 :* 是前缀，ls -la 能命中；但 Bash(ls) 不带 :* 只精确匹配 ls 一条；还有 Read/Edit 的 deny 会顺带盖住 cat/head/tail/sed 这些等价读法。收尾一句：绕过的花招基本都被这套拆解堵掉了。">
+<section class="slide" data-note="上页那条 echo $(cat .env) 为什么会被拦？这页拆给大家看：Bash 命令不是拿整行去撞规则，是先做一串静态校验再逐段匹配。讲四件事。第一，剥壳：timeout/time/nice/nohup/xargs 这些包装前缀会被先剥掉，拿里面真正的命令去判——所以你别想用 timeout rm -rf / 绕过。第二，拆复合：&&、||、|、; 、以及 $(...) <(...) 命令替换，都会被拆成一个个子命令，每一段都要单独过规则，任何一段不过整条就不过——这就是 echo $(cat .env) 被拦的原因，echo 本身无害，但内联的 cat .env 命中了 deny Read(.env)。第三，只读内建直接放：ls cat echo pwd head tail grep find wc which diff stat 这些加只读的 git，不用问——但注意，一旦和危险段复合就不算数了。第四，通配符讲边界：星号可以出现在命令任意位置——Bash(ls *) 匹配 ls -la 但不匹配 lsof，那个空格是词边界；Bash(git * main) 里星号在中间，git checkout main、git push origin main 都命中。不带星号的 Bash(ls) 只精确匹配 ls 一条。还有 Read/Edit 的 deny 会顺带盖住 cat/head/tail/sed 这些等价读法。收尾一句：绕过的花招基本都被这套拆解堵掉了。">
   <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">28 / 49</div></div>
   <h2>一条 Bash 命令，是被拆开来判的</h2>
   <p class="subtitle">上页 <code>echo "$(cat .env)"</code> 为什么被拦？因为 Bash 不拿整行撞规则——先剥壳、再拆成子命令，<b>每一段都要单独过</b>，一段不过整条不过。</p>
@@ -889,10 +889,11 @@ max_tokens: <span class="s">4096</span>
     </div>
     <div class="cmds">
       <div class="card"><div class="label">③ 只读内建：不用问</div><p><code>ls cat echo pwd head tail grep find wc which diff stat du</code> + 只读 git，直接放。<b>但一旦和危险段复合，这条豁免就不算数了。</b></p></div>
-      <div class="card"><div class="label">④ 通配符看边界</div>
+      <div class="card"><div class="label">④ 通配符看边界（<code>*</code> 可在任意位置）</div>
         <table class="matrix" style="margin-top:4px">
           <tr><th>规则写法</th><th>能匹配到</th></tr>
-          <tr><td><code>Bash(ls:*)</code></td><td><span class="yes">ls</span> / <span class="yes">ls -la</span> —— <code>:*</code> 是前缀</td></tr>
+          <tr><td><code>Bash(ls *)</code></td><td><span class="yes">ls -la</span>；<span class="no">lsof 不算</span> —— 空格是词边界</td></tr>
+          <tr><td><code>Bash(git * main)</code></td><td><span class="yes">git checkout main</span> / <span class="yes">git push origin main</span> —— <code>*</code> 能在中间</td></tr>
           <tr><td><code>Bash(ls)</code></td><td>只精确 <span class="yes">ls</span>；<span class="no">ls -la 不算</span></td></tr>
           <tr><td><code>deny Read(./.env)</code></td><td>顺带盖住 <code>cat/head/tail/sed .env</code></td></tr>
         </table>
@@ -905,7 +906,7 @@ max_tokens: <span class="s">4096</span>
 
 
 <!-- ============ 18 删除与路径怎么判 ============ -->
-<section class="slide" data-note="专门回答那个具体问题：rm -rf / 明显该拦，但删一个具体文件到底怎么判？这页把"删除"和"路径"两件事讲透。上半：删除分三档。第一档，rm -rf / 和 rm -rf ~ 是硬熔断，任何模式都拦，连 bypass 都拦，而且 v2.1.208 起把 $(...)、<() 包起来的变体也一起拦；注意这是"命令注定失败/毁灭级"才熔断，不是所有 rm 都拦。第二档，删具体文件比如 rm build/output.js，本身不撞熔断，怎么判看模式和范围：Manual 下要问、acceptEdits 因为是工作目录内的 fs 命令直接放、bypass 放；如果你写了 deny Bash(rm:*) 那就任何模式都拦。第三档，删到工作目录外或受保护目录，任何非 bypass 模式都不自动放。下半讲路径校验：所有文件操作路径都会被规整成绝对路径再判，还会跟符号链接较劲——allow 要求软链接和它指向的目标都匹配才放，deny 只要沾一边就拦，堵 TOCTOU。受保护目录清单 .git .claude(除 worktrees) .ssh .vscode .idea 等，这些的写入只有 bypass 会自动放，其它模式一律先问。落脚：删除危不危险，系统看的是"目标是什么、在不在范围、什么模式"，不是命令长什么样。">
+<section class="slide" data-note="专门回答那个具体问题：rm -rf / 明显该拦，但删一个具体文件到底怎么判？这页把"删除"和"路径"两件事讲透。上半：删除分三档。第一档，rm -rf / 和 rm -rf ~ 是硬熔断，任何模式都拦，连 bypass 都拦，而且 v2.1.208 起把 $(...)、<() 包起来的变体也一起拦；注意这是"命令注定失败/毁灭级"才熔断，不是所有 rm 都拦。第二档，删具体文件比如 rm build/output.js，本身不撞熔断，怎么判看模式和范围：Manual 下要问、acceptEdits 因为是工作目录内的 fs 命令直接放、bypass 放；如果你写了 deny Bash(rm *) 那就任何模式都拦。第三档，删到工作目录外或受保护目录，任何非 bypass 模式都不自动放。下半讲路径校验：所有文件操作路径都会被规整成绝对路径再判，还会跟符号链接较劲——allow 要求软链接和它指向的目标都匹配才放，deny 只要沾一边就拦，堵 TOCTOU。受保护目录清单 .git .claude(除 worktrees) .ssh .vscode .idea 等，这些的写入只有 bypass 会自动放，其它模式一律先问。落脚：删除危不危险，系统看的是"目标是什么、在不在范围、什么模式"，不是命令长什么样。">
   <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">29 / 49</div></div>
   <h2>"删根目录"拦得住，那"删一个文件"呢？</h2>
   <p class="subtitle">删除危不危险，系统看的是<b>目标是什么、在不在范围、什么模式</b>——不是命令长什么样。删除分三档，路径要过安全校验。</p>
@@ -913,7 +914,7 @@ max_tokens: <span class="s">4096</span>
     <div>
       <div class="code-cap">删除的三档</div>
       <div class="delrow deny"><b>硬熔断</b><div><code>rm -rf /</code> · <code>rm -rf ~</code><span>任何模式都拦，<b>连 bypass 也拦</b>；v2.1.208 起 <code>$(…)</code> <code>&lt;(…)</code> 包裹的变体一并拦。只熔断"注定毁灭级"，不是所有 rm。</span></div></div>
-      <div class="delrow ask"><b>删具体文件</b><div><code>rm build/output.js</code><span>不撞熔断，看模式：Manual <b>问</b> / acceptEdits 是目录内 fs 命令 <b>放</b> / bypass <b>放</b>。你若写 <code>deny Bash(rm:*)</code> 则任何模式都拦。</span></div></div>
+      <div class="delrow ask"><b>删具体文件</b><div><code>rm build/output.js</code><span>不撞熔断，看模式：Manual <b>问</b> / acceptEdits 是目录内 fs 命令 <b>放</b> / bypass <b>放</b>。你若写 <code>deny Bash(rm *)</code> 则任何模式都拦。</span></div></div>
       <div class="delrow out"><b>越界删</b><div>删到工作目录外 / 受保护目录<span>任何<b>非 bypass</b> 模式都不自动放。</span></div></div>
     </div>
     <div>
@@ -944,9 +945,9 @@ max_tokens: <span class="s">4096</span>
       <div class="code-cap">粒度：能精确到命令前缀、目录、参数</div>
       <div class="code"><span class="c"># .claude/settings.json —— 按需自定义</span>
 <span class="k">"permissions"</span>: {
-  <span class="k">"allow"</span>: [<span class="s">"Bash(npm test:*)"</span>, <span class="s">"Edit(src/**)"</span>],
-  <span class="k">"ask"</span>:   [<span class="s">"Bash(git push:*)"</span>],
-  <span class="k">"deny"</span>:  [<span class="s">"Read(./.env)"</span>, <span class="s">"Bash(rm -rf:*)"</span>]
+  <span class="k">"allow"</span>: [<span class="s">"Bash(npm test *)"</span>, <span class="s">"Edit(src/**)"</span>],
+  <span class="k">"ask"</span>:   [<span class="s">"Bash(git push *)"</span>],
+  <span class="k">"deny"</span>:  [<span class="s">"Read(./.env)"</span>, <span class="s">"Bash(rm -rf *)"</span>]
 }</div>
       <div class="band orange-band" style="margin-top:14px"><b>记住：多层规则是"合并"的。</b>各来源的 allow/ask/deny 叠加，<b>deny 永远最硬</b>。不确定当前生效哪条，用 <code>/permissions</code> 看。</div>
     </div>
@@ -1365,13 +1366,13 @@ server.registerTool(<span class="s">"weather"</span>, {
 <span class="c">#      managed-settings.json（路径随 OS 变）</span>
 {
   <span class="k">"permissions"</span>: { <span class="k">"deny"</span>: [<span class="s">"Read(./.env)"</span>,
-    <span class="s">"Bash(curl:*)"</span>, <span class="s">"WebFetch"</span>] },
+    <span class="s">"Bash(curl *)"</span>, <span class="s">"WebFetch"</span>] },
   <span class="k">"allowManagedHooksOnly"</span>: <span class="k">true</span>
 }</div>
       <div class="hint" style="margin-top:8px">开了 <code>allowManagedHooksOnly</code>，用户/项目/插件的 hook <b>全被忽略</b>，只跑公司下发的 hook——防有人用 hook 绕治理。</div>
       <div class="code-cap" style="margin-top:12px">个人放宽（<code>.local</code>，不进 git，不动团队文件）</div>
       <div class="code"><span class="c"># .claude/settings.local.json</span>
-{ <span class="k">"permissions"</span>: { <span class="k">"allow"</span>: [<span class="s">"Bash(npm run dev:*)"</span>] } }</div>
+{ <span class="k">"permissions"</span>: { <span class="k">"allow"</span>: [<span class="s">"Bash(npm run dev *)"</span>] } }</div>
     </div>
   </div>
   <div class="foot"><span>公司 managed 优先级最高 + deny 恒赢，双重守底线；团队规范进 git；个人偏好放 .local</span><span>43</span></div>
