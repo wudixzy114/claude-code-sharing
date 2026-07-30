@@ -149,17 +149,18 @@
   })();
 
   // ============================================================
-  // 3) COMPRESSION demo (slide 09) — two manual modes on ONE tool result:
-  //    (a) 压一层: step the 4 compaction layers; each visibly transforms
-  //        the SAME build-log block (换引用 ≠ 清冗余截断), meter drops.
-  //    (b) 动态压缩: step through a growing transcript; near the threshold
-  //        the tail auto-compacts. Both modes advance one click at a time,
-  //        each with a one-line caption of what just happened.
+  // 3) COMPRESSION demo (slide 13) — the FIVE real narrowing passes, on ONE
+  //    context. Two modes on the same left rail (5 stage boxes):
+  //    (a) 压一步: step passes 1..5; each visibly transforms a DIFFERENT block
+  //        so you can see what that pass actually does. Meter drops each step.
+  //    (b) 看动态压缩: a transcript grows past the threshold; the runtime
+  //        escalates cheap→expensive, cheap passes first, model call last.
+  //    Both advance one click at a time, each with a one-line caption.
   // ============================================================
   const CompDemo = (function(){
     const layersWrap = $('#compLayers');
     if(!layersWrap) return {reset(){}};
-    const layers = $$('.comp-layer', layersWrap);
+    const layers = $$('.comp-layer', layersWrap);   // now 5 stage boxes
     const list = $('#ctxList');
     const usedFill = $('#compUsed');
     const usedLabel = $('#compUsedLabel');
@@ -170,54 +171,78 @@
     const status = $('#compStatus');
     const meter = $('#compMeter');
 
-    // ---- ONE bulky tool result so you can watch exactly what each strategy
-    //      does to it. Build log carries obvious redundancy (3 identical
-    //      WARNING lines) + a big tail, so microcompact's edits are visible.
+    // ---- ONE starting context that carries a distinct "target" for EACH of
+    //      the five passes, so every step visibly changes a different block:
+    //        · stale bulky output    → pass 1 budget 削减 drops it whole
+    //        · one over-long output  → pass 2 snip keeps head/tail
+    //        · repeated tool results → pass 3 microcompact dedups + refs
+    //        · long exploration arc  → pass 4 collapse folds into one block
+    //        · old history + recent  → pass 5 auto-compact summarizes (LLM)
     const initial = () => ([
       {cls:'keep',  tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']},
-      {cls:'bulky', tag:'工具结果 · 构建日志', lines:[
+      {cls:'stale bulky', tag:'工具结果 · 20 轮前的构建日志', lines:[
         '&gt; webpack --mode production',
-        'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
-        'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
-        'WARNING  vendor.js 超过体积上限 (3.2 MiB)',
-        './src/router/parse.ts 2.4 KiB [built]',
-        'webpack compiled with 3 warnings in 8421 ms',
-        '… 余下 210 行输出（大量 chunk 哈希）']},
-      {cls:'keep',  tag:'已验证事实', lines:['新实现基于 URL 解析；空 query 已补分支']},
+        'vendor.js 3.2 MiB · 210 行 chunk 哈希',
+        '（很多轮前的，早就用不上了）']},
+      {cls:'long bulky', tag:'工具结果 · 测试 stdout（超长单条）', lines:[
+        'PASS  src/router/parse.test.ts',
+        '…（共 900 行，中间大量逐用例输出）…',
+        '1 项失败：空 query 返回 null']},
+      {cls:'dup bulky', tag:'工具结果 · Grep ×3（重复）', lines:[
+        'grep parsePath → 12 命中',
+        'grep parsePath → 12 命中',
+        'grep parsePath → 12 命中']},
+      {cls:'arc', tag:'探索历史 · 早期 20 轮来回', lines:[
+        '读 parse.ts → 试方案 A → 回退 → 试方案 B …',
+        '（一大段试错对话，结论已定）']},
+      {cls:'keep',  tag:'最近原文', lines:['最后一轮：补空 query 分支，准备再跑测试']},
     ]);
 
-    // ---- manual mode walks the TWO real strategies, in the order the runtime
-    //      escalates: microcompact (local, no LLM) first; if still over-limit,
-    //      full compact (one LLM call). Left panel: layer 0 = microcompact,
-    //      layer 1 = full compact, layer 2 = the trigger (never "stepped").
+    // ---- manual mode: the five passes, in escalation order. Each returns the
+    //      new block list. Passes 1..4 are local (green cut.local / drops);
+    //      pass 5 is the only model call (yellow cut.llm).
     const passes = [
-      // strategy 1 — microcompact: dedup the 3 identical WARNINGs, truncate the
-      // long tail, and swap the oversized payload out for a one-line reference.
-      // All local, no model call. Same block, now much shorter.
-      (blocks) => blocks.map(b => b.tag==='工具结果 · 构建日志'
+      // 1 · budget 削减 — drop the stale bulky output whole.
+      (blocks) => blocks.filter(b => !b.cls.includes('stale')),
+      // 2 · snip — the over-long single output keeps head + tail, mid elided.
+      (blocks) => blocks.map(b => b.cls.includes('long')
         ? {cls:'shrunk', tag:b.tag, lines:[
-            '&gt; webpack --mode production',
-            'WARNING  vendor.js 超过体积上限 (3.2 MiB) <span class="cut local">×3 已去重</span>',
-            'webpack compiled with 3 warnings in 8421 ms',
-            '↳ 完整 216 行已存 /tmp/cc-build.log <span class="cut local">截断·换引用</span>']}
+            'PASS  src/router/parse.test.ts',
+            '<span class="cut local">… 中间 896 行已省略 …</span>',
+            '1 项失败：空 query 返回 null']}
         : b),
-      // strategy 2 — full compact: one LLM call folds the old history into a
-      // summary + boundary marker, KEEPS the most recent turn verbatim, and
-      // would reinject key files. This is the only model-calling path.
+      // 3 · microcompact — dedup the 3 identical greps, swap for one reference.
+      (blocks) => blocks.map(b => b.cls.includes('dup')
+        ? {cls:'shrunk', tag:b.tag, lines:[
+            'grep parsePath → 12 命中 <span class="cut local">×3 已去重</span>',
+            '↳ 完整命中已存引用 <span class="cut local">换引用</span>']}
+        : b),
+      // 4 · context collapse — fold the long exploration arc into one compact block.
+      (blocks) => blocks.map(b => b.cls==='arc'
+        ? {cls:'shrunk', tag:'探索历史（已折叠）', lines:[
+            '↳ 20 轮试错 → 结论：采用方案 B（URL 解析） <span class="cut local">折叠</span>']}
+        : b),
+      // 5 · auto-compact — one model call folds old history into summary + boundary,
+      //     keeps the most recent turn verbatim. Only model-calling path.
       (blocks) => [
-        {cls:'summary', tag:'全量压缩 · 一次模型调用', lines:['读 parsePath → 改写为 URL 解析 → 构建通过(3 警告) → 测试补空 query 分支 → 12 项全过。细节按引用回查。 <span class="cut llm">摘要+边界</span>']},
-        {cls:'keep', tag:'最近原文（保留）', lines:['最后一轮：npm test 全过，准备交付']},
+        {cls:'keep', tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']},
+        {cls:'summary', tag:'全量压缩 · 一次模型调用', lines:['读 parsePath → 改写为 URL 解析 → 构建通过 → 测试补空 query 分支 → 12 项全过；细节按引用回查 <span class="cut llm">摘要+边界</span>']},
+        {cls:'keep', tag:'最近原文（保留）', lines:['最后一轮：补空 query 分支，准备再跑测试']},
       ],
     ];
 
-    const usedByStep = [88, 52, 30];
-    const stratNames = ['微压缩 microcompact','全量压缩 compact'];
+    // used% after: [start, after1, after2, after3, after4, after5]
+    const usedByStep = [92, 82, 70, 60, 50, 30];
+    const stratNames = ['budget 削减','snip 裁剪','microcompact 微压缩','context collapse 折叠','auto-compact 全量'];
     const stratCaps = [
-      '3 条重复 WARNING 去重、长尾截断、大块换成一行引用 —— 全程本地、不调模型',
-      '一次模型调用把旧历史压成摘要 + 边界标记，最近一轮原文原样保留',
+      '按预算把很多轮前那块用不上的大工具输出整块丢掉 —— 本地、不调模型',
+      '把那条 900 行的超长输出裁成头尾、中间省略 —— 本地、不调模型',
+      '3 条重复 Grep 去重、完整命中换成一行引用 —— 本地、不调模型',
+      '早期 20 轮试错历史折叠成一句结论 —— 本地、代价很低',
+      '前四道都腾不出空间了，才调一次模型把旧历史压成摘要 + 边界，最近原文原样保留',
     ];
 
-    let step = 0;              // manual strategy step (0..2)
+    let step = 0;              // manual pass step (0..5)
     let blocks = initial();
 
     function renderBlock(b){
@@ -231,7 +256,6 @@
     function render(scrollBottom){
       list.innerHTML = '';
       blocks.forEach(b => list.appendChild(renderBlock(b)));
-      // wait for layout so scrollHeight reflects the just-added blocks
       if(scrollBottom) requestAnimationFrame(() => { scroller.scrollTop = scroller.scrollHeight; });
     }
 
@@ -241,15 +265,15 @@
       freeLabel.textContent = '空余 '+(100-used)+'%';
     }
 
-    // light layer i as active; earlier ones done. Layer 2 (trigger) never lit here.
+    // light pass i as active; earlier ones done (all 5 boxes are real passes).
     function markLayers(){
       layers.forEach((l,i) => {
-        l.classList.toggle('done', i < step && i < 2);
-        l.classList.toggle('on', i === step-1 && i < 2);
+        l.classList.toggle('done', i < step);
+        l.classList.toggle('on', i === step-1);
       });
     }
 
-    // ---- manual strategy stepping ----
+    // ---- manual pass stepping ----
     function next(){
       exitDynamic();
       if(step >= passes.length) return;
@@ -259,33 +283,37 @@
       render();
       setUsed(usedByStep[step]);
       markLayers();
-      status.textContent = '「'+stratNames[step-1]+'」：'+stratCaps[step-1]
+      status.textContent = '第 '+step+' 道「'+stratNames[step-1]+'」：'+stratCaps[step-1]
         + ' · 占用 '+prev+'%→'+usedByStep[step]+'%';
       if(step >= passes.length){
         nextBtn.disabled = true;
-        nextBtn.textContent = '压到头了 ✓';
-        status.textContent = '先做本地微压缩(88→52%)，还超才升级到全量 LLM 压缩(52→30%)。大多数时候只做前者，全量较少触发';
+        nextBtn.textContent = '五道走完 ✓';
+        status.textContent = '五道按序过完：前四道都在本地(92→50%)、能省的先省，实在不够才动第 5 道那次模型调用(50→30%)。多数时候前几道就够了';
       }
     }
 
-    // ---- dynamic mode: transcript grows; autoCompact watches the threshold
-    //      and drives escalation, mapped to the SAME two strategies on the left:
-    //        · first over-limit → microcompact (layer 0). No model call. Common.
-    //        · grows again, old results already shrunk, still over → full
-    //          compact (layer 1). One model call. Rarer.
-    //      Each click advances one event and lights the strategy it uses.
+    // ---- dynamic mode: transcript grows; the runtime escalates through the
+    //      SAME five passes, cheap first, stopping as soon as it's under line.
+    //      First trigger: cheap passes 1–3 already bring it down. Later, after
+    //      more growth and the cheap targets are gone, it must escalate to
+    //      collapse (4) and finally the model call (5).
     let inDyn = false, dynIdx = 0, dynBlocks = [];
     const dynSteps = [
-      {kind:'add', block:{cls:'keep',  tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']}, used:30, over:false, cap:'起点：只有用户目标，占用 30%'},
-      {kind:'add', block:{cls:'model', tag:'模型', lines:['先看看这个函数 → 调 Read']}, used:34, over:false, cap:'① 模型发起：要调 Read'},
-      {kind:'add', block:{cls:'bulky', tag:'工具结果 · Read', lines:['parsePath(): 42 行源码','3 处正则拼接']}, used:48, over:false, cap:'② Read 结果回填 → 34%→48%'},
-      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 构建日志', lines:['webpack 218 行输出','vendor 3.2 MiB … 大量 chunk 哈希']}, used:76, over:false, cap:'③ 构建日志回填 → 48%→76%'},
-      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 测试 stdout', lines:['96 行 stdout','1 项失败：空 query 返回 null']}, used:90, over:true, cap:'④ 测试结果又回填 → 涨到 90%，autoCompact 发现越过阈值线'},
-      {kind:'compact', mode:'local', layer:0, used:56, over:false, cap:'⑤ 先做最便宜的微压缩(左边第 1 类)：旧工具结果去重、截断、换引用 —— 本地、不调模型，90%→56%'},
-      {kind:'add', block:{cls:'model', tag:'模型', lines:['补空值分支 → 再跑测试']}, used:60, over:false, cap:'⑥ 接着往下跑，占用又开始涨'},
-      {kind:'add', block:{cls:'bulky', tag:'工具结果 · 测试 stdout', lines:['又一份 96 行 stdout','12 项全过 ✓']}, used:92, over:true, cap:'⑦ 新的大结果再回填 → 涨回 92%，再次越过阈值线'},
-      {kind:'compact', mode:'full', layer:1, used:34, over:false, cap:'⑧ 旧结果早已被微压过、本地压无可压却仍超限 → 升级到全量压缩(左边第 2 类)：调一次模型做摘要 + 边界，92%→34%'},
-      {kind:'add', block:{cls:'model', tag:'模型', lines:['12 项全过，准备交付']}, used:40, over:false, cap:'⑨ 埋个坑：全量那次是独立的模型请求，万一失败，会话不会瘦、反而继续涨到 Prompt too long'},
+      {kind:'add', block:{cls:'keep',  tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']}, used:30, over:false, lit:[], cap:'起点：只有用户目标，占用 30%'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['先看看这个函数 → 调 Read']}, used:36, over:false, lit:[], cap:'① 模型发起：要调 Read'},
+      {kind:'add', block:{cls:'stale bulky', tag:'工具结果 · Read', lines:['parsePath(): 42 行源码','3 处正则拼接']}, used:52, over:false, lit:[], cap:'② Read 结果回填 → 36%→52%'},
+      {kind:'add', block:{cls:'long bulky', tag:'工具结果 · 构建日志', lines:['webpack 900 行输出','vendor 3.2 MiB … 大量 chunk 哈希']}, used:78, over:false, lit:[], cap:'③ 构建日志回填 → 52%→78%'},
+      {kind:'add', block:{cls:'dup bulky', tag:'工具结果 · 测试 stdout', lines:['96 行 stdout','1 项失败：空 query 返回 null']}, used:93, over:true, lit:[], cap:'④ 测试结果又回填 → 涨到 93%，越过阈值线，开始压'},
+      // first trigger: cheap passes 1→2→3 handle it; stop once under line.
+      {kind:'compact', passes:[0,1,2], used:54, over:false, lit:[0,1,2], cap:'⑤ 触发：先上最便宜的前三道——budget 丢旧输出、snip 裁超长、microcompact 去重换引用（都不调模型）→ 93%→54%，够了就停'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['补空值分支 → 再跑测试']}, used:60, over:false, lit:[], cap:'⑥ 接着往下跑，占用又开始涨'},
+      {kind:'add', block:{cls:'arc', tag:'又一批探索来回', lines:['再试两个边界 case','逐步逼近最终写法']}, used:78, over:false, lit:[], cap:'⑦ 又积累一段探索历史 → 60%→78%'},
+      {kind:'add', block:{cls:'long bulky', tag:'工具结果 · 测试 stdout', lines:['又一份 900 行 stdout','12 项全过 ✓']}, used:94, over:true, lit:[], cap:'⑧ 新的大结果再回填 → 94%，再次越线'},
+      // second trigger: cheap targets mostly gone; escalate to collapse (4)…
+      {kind:'compact', passes:[0,1,2,3], used:72, over:true, lit:[3], cap:'⑨ 这次前三道能压的已不多，升级到第 4 道 context collapse：把大段探索历史折叠成结论 → 只降到 72%，仍超线'},
+      // …still over → finally the model call (5).
+      {kind:'compact', passes:[4], used:34, over:false, lit:[4], cap:'⑩ 本地五道里前四道都压无可压却仍超限 → 才升级到第 5 道全量压缩：调一次模型做摘要 + 边界 → 94→34%'},
+      {kind:'add', block:{cls:'model', tag:'模型', lines:['12 项全过，准备交付']}, used:40, over:false, lit:[], cap:'⑪ 埋个坑：第 5 道那次是独立的模型请求，万一失败，会话不会瘦、反而继续涨到 Prompt too long'},
     ];
 
     function lightDynLayers(indices){
@@ -293,6 +321,11 @@
         l.classList.toggle('on', indices.indexOf(i) >= 0);
         l.classList.remove('done');
       });
+    }
+
+    // apply a set of manual passes (by index) to the current dyn transcript.
+    function applyPasses(indices){
+      indices.forEach(i => { dynBlocks = passes[i](dynBlocks); });
     }
 
     function enterDynamic(){
@@ -306,7 +339,7 @@
       meter.classList.remove('over');
       nextBtn.disabled = true;
       autoBtn.textContent = '动态 · 下一步 ▶';
-      status.textContent = '点「下一步」：看上下文一轮轮长起来，autoCompact 越过阈值线先做本地微压缩，不够再升级到全量';
+      status.textContent = '点「下一步」：看上下文一轮轮长起来，越过阈值线就按五道顺序压，便宜的先上、够了就停，不够再升级';
     }
 
     function exitDynamic(){
@@ -325,21 +358,12 @@
       const e = dynSteps[dynIdx++];
       if(e.kind==='add'){
         dynBlocks.push(e.block);
-        // any add near/over threshold is the trigger noticing → light layer 2
-        lightDynLayers(e.over ? [2] : []);
-      } else if(e.mode==='local'){
-        // microcompact: bulky tool results → shrunk one-line references
-        dynBlocks = dynBlocks.map(b => b.cls==='bulky'
-          ? {cls:'shrunk', tag:b.tag, lines:['↳ 引用（已折叠，可展开） <span class="cut local">微压缩</span>']}
-          : b);
-        lightDynLayers([e.layer]);
-      } else { // full compact: fold everything old into one model-made summary
-        dynBlocks = [
-          {cls:'keep', tag:'用户目标', lines:['重构 parsePath，保持兼容，跑测试验证']},
-          {cls:'summary', tag:'全量压缩 · 一次模型调用', lines:['读 parsePath → 改写为 URL 解析 → 构建通过 → 测试补空 query 分支 → 12 项全过；细节按引用回查 <span class="cut llm">摘要+边界</span>']},
-          {cls:'keep', tag:'最近原文（保留）', lines:['最后一轮：npm test 全过，准备交付']},
-        ];
-        lightDynLayers([e.layer]);
+        // an add that crosses the line lights the passes it's about to trigger? no —
+        // lighting happens on the compact step. here just show growth.
+        lightDynLayers(e.lit || []);
+      } else { // compact: run the named passes on the transcript, light those boxes
+        applyPasses(e.passes);
+        lightDynLayers(e.lit || e.passes);
       }
       blocks = dynBlocks;
       render(true);
@@ -363,7 +387,7 @@
       render();
       setUsed(usedByStep[0]);
       markLayers();
-      status.textContent = '两类做法：本地微压缩(不调模型) → 不够再升级全量压缩(调一次模型)；autoCompact 只管何时压';
+      status.textContent = '五道按顺序过：前四道都在本地(不调模型或代价极低)，够了就停；实在腾不出空间，才升级到第 5 道那次真正的模型调用';
       nextBtn.disabled = false;
       nextBtn.textContent = '压一步 ▼';
       autoBtn.disabled = false;

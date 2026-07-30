@@ -117,17 +117,21 @@
 
 /* ========== compression demo (slide 9) ========== */
 .compdemo{display:grid;grid-template-columns:250px 1fr;gap:30px;align-items:start;margin-top:14px;padding-top:22px}
-.comp-layers{display:grid;gap:10px}
-.comp-layer{position:relative;border:2px solid var(--line);border-radius:10px;padding:12px 15px;background:var(--white);transition:all .3s ease;opacity:.55}
-.comp-layer b{display:block;font-size:18px}
-.comp-layer span{font-size:13.5px;line-height:1.35;color:var(--muted)}
+.comp-layers{display:grid;gap:8px}
+.comp-layer{position:relative;border:2px solid var(--line);border-radius:10px;padding:9px 14px;background:var(--white);transition:all .3s ease;opacity:.55}
+.comp-layer b{display:block;font-size:16px}
+.comp-layer span{font-size:12.5px;line-height:1.3;color:var(--muted)}
+.comp-layer .tag-local,.comp-layer .tag-llm{margin-top:4px}
 .comp-layer.on{opacity:1;box-shadow:0 8px 20px rgba(0,0,0,.14)}
 .comp-layer.done{opacity:1}
-.comp-layer.done:after{content:"✓";position:absolute;right:12px;top:12px;color:var(--teal);font-weight:700;font-size:18px}
-.comp-layer:nth-child(1).on,.comp-layer:nth-child(1).done{background:var(--teal-soft);border-color:var(--teal)}
-.comp-layer:nth-child(2).on,.comp-layer:nth-child(2).done{background:var(--yellow-soft);border-color:var(--yellow)}
-.comp-layer:nth-child(3).on,.comp-layer:nth-child(3).done{background:var(--purple-soft);border-color:var(--purple)}
-.comp-layer:nth-child(4).on,.comp-layer:nth-child(4).done{background:var(--orange-soft);border-color:var(--orange)}
+.comp-layer.done:after{content:"✓";position:absolute;right:11px;top:10px;color:var(--teal);font-weight:700;font-size:17px}
+/* boxes 1–4 are local (green); box 5 is the one model call (yellow) */
+.comp-layer:nth-child(1).on,.comp-layer:nth-child(1).done,
+.comp-layer:nth-child(2).on,.comp-layer:nth-child(2).done,
+.comp-layer:nth-child(3).on,.comp-layer:nth-child(3).done,
+.comp-layer:nth-child(4).on,.comp-layer:nth-child(4).done{background:var(--teal-soft);border-color:var(--teal)}
+.comp-layer:nth-child(5).on,.comp-layer:nth-child(5).done{background:var(--yellow-soft);border-color:var(--yellow)}
+.comp-layer:nth-child(5).done:after{color:var(--yellow)}
 
 .comp-right{display:flex;flex-direction:column;gap:14px}
 .meter{border:2px solid var(--ink);border-radius:10px;overflow:hidden;background:var(--white)}

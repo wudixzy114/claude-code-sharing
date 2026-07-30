@@ -428,26 +428,28 @@ hooks 必须以 use 前缀命名。</div>
 
 
 <!-- ============ 09 压缩机制动画（全场重点） ============ -->
-<section class="slide" data-locked="true" data-lock-note="已确认满意。已修正布局与动态滚动；锁定本页的结构、文案和视觉样式，后续排版只允许调整页面顺序。" data-note="全场最重要的一页，慢慢讲。先纠正一个我自己以前的糊涂说法：不是笼统的四层，源码里其实是两类压法 + 一个触发器。左边：第一类微压缩 microcompact，就地把旧工具结果去重、截断、换引用（限 Read/Bash/Grep 等几类工具的结果），全程本地、不调模型，这是最常发生的；第二类全量压缩 compact，才调一次模型，把旧历史压成摘要 + 打边界 + 保留最近几轮原文 + 回填关键文件，这个较少触发。第三块 autoCompact 不是一种压法，是触发器，盯着有效窗口减 13k 的阈值、时间、以及请求太长被拒（PTL）来决定何时压。手动模式：点压一步，先看微压缩把那块构建日志去重截断换引用（88→52%，不调模型），再点一步升级到全量压缩、调一次模型压成摘要（52→30%，最近一轮原文保留）。讲完手动点看动态压缩，也是手动一步步点：上下文一轮轮涨，autoCompact 越过阈值先做便宜的微压缩、占用回落；又涨、旧结果已被微压过压无可压、仍超限，才升级到全量 LLM 压缩。强调两点：一是大多数时候只做本地微压缩，全量较少触发；二是全量那次是独立模型请求，失败会导致会话继续涨到 Prompt too long——这是我本地日志里真见过的。">
+<section class="slide" data-locked="true" data-lock-note="已确认满意。demo 已从两类做法扩展为完整五道工序（用户 2026-07-30 要求）；结构/视觉锁定，后续排版只允许调整页面顺序。" data-note="全场最重要的一页，慢慢讲。压缩不是笼统一下全压，源码里准备下一轮请求前，上下文按'先便宜、先不伤信息'的顺序过五道收窄工序，够了就停。左边五个盒子就是这五道：1 budget 削减——先按预算砍掉明显能省的，比如很多轮前那块早就用不上的大工具输出，整块丢掉；2 snip 裁剪——某一条特别长的输出，留头尾、中间省略；3 microcompact 微压缩——一批旧结果去重、大块换成一行引用（缓存版走 cache_edits 在服务端删、还不破坏缓存命中），本地不调模型，这是最常发生的；4 context collapse 折叠——把一大段历史折叠成更紧凑的表示，范围比裁单条更大；5 auto-compact 全量——前四道都腾不出空间了，才花一次模型调用把旧历史压成摘要 + 打边界 + 保留最近原文 + 回填关键文件，成本最高放最后。前四道都在本地(不调模型或代价极低)，只有第 5 道真正调一次模型。手动模式：点压一步，逐道看右边上下文里对应那块被怎么处理、仪表占用一步步回落。动态模式(看动态压缩)：上下文一轮轮涨过阈值线(有效窗口减 13k)就触发压缩，先上便宜的前几道、够了就停；再涨、旧结果已压无可压仍超限，才升级到折叠、乃至第 5 道全量。强调两点：一是能省的先省、动模型的放最后，大多数时候前几道就够了；二是全量那次是独立模型请求，失败会导致会话继续涨到 Prompt too long——这是我本地日志里真见过的。这页演过程，第 14 页那张表是它的文字速查。">
   <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">13 / 49</div></div>
-  <h2>压缩其实是两类做法 + 一个触发器，只有一类调模型</h2>
+  <h2>压缩不是一下全压——五道工序按顺序过，只有最后一道调模型</h2>
   <div class="demo compdemo">
     <div class="comp-layers" id="compLayers">
-      <div class="comp-layer" data-layer="0"><b>微压缩 microcompact</b><span>旧工具结果就地截断 / 换引用 / 去重清除；缓存版走 cache_edits 删除还保住缓存命中</span><span class="tag-local">本地 · 不调模型 · 最常做</span></div>
-      <div class="comp-layer" data-layer="1"><b>全量压缩 compact</b><span>旧历史压成一段摘要 + 打边界 + 保留最近几轮原文 + 回填关键文件</span><span class="tag-llm">调一次模型 · 较少触发</span></div>
-      <div class="comp-layer" data-layer="2"><b>autoCompact 触发器</b><span>盯阈值(有效窗口−13k)/时间/请求被拒(PTL)，决定何时压：先微压，压完还超才升级全量</span><span class="tag-trigger">只管何时压</span></div>
+      <div class="comp-layer" data-layer="0"><b>1 · budget 削减</b><span>先按预算砍掉明显能省的：老旧的大工具输出整块丢掉</span><span class="tag-local">本地 · 不调模型</span></div>
+      <div class="comp-layer" data-layer="1"><b>2 · snip 裁剪</b><span>某条特别长的输出，留头尾、中间省略</span><span class="tag-local">本地 · 不调模型</span></div>
+      <div class="comp-layer" data-layer="2"><b>3 · microcompact 微压缩</b><span>一批旧结果去重、大块换成一行引用（缓存版走 cache_edits）</span><span class="tag-local">本地 · 不调模型 · 最常做</span></div>
+      <div class="comp-layer" data-layer="3"><b>4 · context collapse 折叠</b><span>一大段历史折叠成更紧凑的表示</span><span class="tag-local">本地 · 代价很低</span></div>
+      <div class="comp-layer" data-layer="4"><b>5 · auto-compact 全量</b><span>调一次模型压成摘要 + 边界 + 保留最近原文 + 回填关键文件</span><span class="tag-llm">调一次模型 · 成本最高 · 放最后</span></div>
     </div>
     <div class="comp-right">
       <div class="meter" id="compMeter">
         <div class="thresh"></div>
         <div class="track">
-          <div class="fill used" id="compUsed" style="width:88%"></div>
+          <div class="fill used" id="compUsed" style="width:92%"></div>
           <div class="free"></div>
-          <div class="cap"><span class="used-label" id="compUsedLabel">已用 88%</span><span class="free-label" id="compFreeLabel">空余 12%</span></div>
+          <div class="cap"><span class="used-label" id="compUsedLabel">已用 92%</span><span class="free-label" id="compFreeLabel">空余 8%</span></div>
         </div>
       </div>
       <div class="ctx">
-        <div class="chead">当前上下文里都装了啥（点"压一步"看微压缩→全量两类做法 / 或点"看动态压缩"看 autoCompact 何时触发）</div>
+        <div class="chead">当前上下文里都装了啥（点"压一步"逐道看这五道各动了什么 / 或点"看动态压缩"看 autoCompact 越过阈值线后如何按序升级）</div>
         <div class="ctx-list" id="ctxList"></div>
       </div>
     </div>
@@ -456,17 +458,17 @@ hooks 必须以 use 前缀命名。</div>
     <button class="demo-btn" id="compNext">压一步 ▼</button>
     <button class="demo-btn" id="compAuto">▶ 看动态压缩</button>
     <button class="demo-btn ghost" id="compReset">重来</button>
-    <span class="demo-status" id="compStatus">两类做法：本地微压缩(不调模型) → 不够再升级全量压缩(调一次模型)；autoCompact 只管何时压</span>
+    <span class="demo-status" id="compStatus">五道按顺序过：前四道都在本地(不调模型或代价极低)，够了就停；实在腾不出空间，才升级到第 5 道那次真正的模型调用</span>
   </div>
-  <div class="foot"><span>绿=本地微压缩(不调模型)，黄=全量压缩(调一次模型)，紫=触发器；全量那次模型请求若失败，会话会继续涨到 Prompt too long（占用百分比为实测示例，随版本变）</span><span>13</span></div>
+  <div class="foot"><span>绿=本地工序(1~4，不调模型)，黄=第 5 道全量压缩(调一次模型)；阈值线=有效窗口−13k，越线才开始压；全量那次模型请求若失败，会话会继续涨到 Prompt too long（占用百分比为实测示例，随版本变）</span><span>13</span></div>
 </section>
 
 
 <!-- ============ 压缩其实是五道工序按顺序过 ============ -->
-<section class="slide slide-31-density" data-note="上一页 demo 演的是压缩的两大类做法（本地微压缩 / 全量压缩）加一个触发器，是给观众建直觉的。这页把'一轮里到底按什么顺序动手'摊开——源码里在准备下一轮请求前，上下文要顺序过五道收窄工序（query.ts 附近那段，行号随版本变），从最便宜、最不伤信息的先上，一道不够再上下一道：第一道 budget 削减，先按预算砍掉可省的部分（比如老旧的大工具输出）；第二道 snip，裁剪单条过长的消息/输出；第三道 microcompact 微压缩，本地把一批消息合并简写，不调模型、零 API 成本；第四道 context collapse，把更大范围的历史折叠成更紧凑的表示；第五道才是 auto-compact 全量压缩——真正调一次模型生成摘要，成本最高，放最后。核心设计取舍：便宜的、损失小的排前面，能在前几道解决就不惊动模型；只有前面都不够腾出空间，才升级到调模型的全量压缩。跟上一页的关系要点一句：上一页 demo 把它简化成'本地微压缩→全量'两档好演示，这页是它更细的真实工序展开，微压缩就是这里的第三道、全量就是第五道，不冲突。工序名/行号取自源码，随版本变。">
+<section class="slide slide-31-density" data-note="上一页 demo 现在把五道工序全演出来了（手动逐道 + 动态按序升级），这页是它的文字速查表——把'一轮里到底按什么顺序动手'一眼摊清。源码里在准备下一轮请求前，上下文要顺序过五道收窄工序（query.ts 附近那段，行号随版本变），从最便宜、最不伤信息的先上，一道不够再上下一道：第一道 budget 削减，先按预算砍掉可省的部分（比如老旧的大工具输出）；第二道 snip，裁剪单条过长的消息/输出；第三道 microcompact 微压缩，本地把一批消息合并简写，不调模型、零 API 成本；第四道 context collapse，把更大范围的历史折叠成更紧凑的表示；第五道才是 auto-compact 全量压缩——真正调一次模型生成摘要，成本最高，放最后。核心设计取舍：便宜的、损失小的排前面，能在前几道解决就不惊动模型；只有前面都不够腾出空间，才升级到调模型的全量压缩。跟上一页的关系一句话：上一页是动画演过程，这页是同一套五道工序的文字清单，互补不冲突。工序名/行号取自源码，随版本变。">
   <div class="top"><div class="kicker">三、上下文与记忆</div><div class="chapter">14 / 49</div></div>
   <h2>压缩不是一下子全压——是五道工序按顺序过</h2>
-  <p class="subtitle">上一页 demo 把压缩简化成"本地微压缩 → 全量"两档，方便看。这页摊开真实顺序：准备下一轮请求前，上下文<b>顺序过五道收窄工序，从最便宜、最不伤信息的先上</b>，一道不够再上下一道。</p>
+  <p class="subtitle">上一页 demo 把这五道逐道演了一遍。这页把它摊成一张速查表：准备下一轮请求前，上下文<b>顺序过五道收窄工序，从最便宜、最不伤信息的先上</b>，一道不够再上下一道。</p>
   <div class="grid two" style="margin-top:12px">
     <div>
       <div class="code-cap">五道工序（越往下越贵，全量压缩放最后）</div>
@@ -480,7 +482,7 @@ hooks 必须以 use 前缀命名。</div>
     </div>
     <div>
       <div class="band" style="margin-bottom:12px"><b>为什么排这个序？</b>越靠前越便宜、对信息的损伤越小。先扔明显能省的（老工具输出），再裁过长单条，再本地合并，再折叠，实在不行才花一次模型调用做全量摘要。<b>能省的先省，动模型的放最后。</b></div>
-      <div class="band orange-band"><b>和上一页什么关系？</b>上一页 demo 里的"本地微压缩"就是这里的<b>第 3 道</b>，"全量压缩"就是这里的<b>第 5 道</b>——demo 为了好演示只留了这两档，这页是它更细的真实展开，不矛盾。</div>
+      <div class="band orange-band"><b>和上一页什么关系？</b>上一页 demo 现在把这五道<b>全部演出来了</b>——手动「压一步」逐道走、动态「看动态压缩」按序升级。这页是它的<b>文字速查表</b>：把每道叫什么、贵不贵、动模型没，一眼列清，跟 demo 互补。</div>
       <div class="band red-band" style="margin-top:12px"><b>接回上一页那个坑：</b>第 5 道那次模型请求要是失败了（日志里 <code>summarization returned API error</code>），空间没腾出来，会话就继续涨，直到下次输入直接 <code>Prompt too long</code>。所以长任务别全等它自动。</div>
     </div>
   </div>
@@ -664,7 +666,7 @@ paste-cache/  <span class="c">// 文件名 = 内容 SHA256 前 16 位（去重�
 
 
 <!-- ============ 13 决策管线 ============ -->
-<section class="slide" data-note="这页把一条命令从请求到放行/拦住/问你的完整关卡链摊开讲。源码里其实是十来步，我合并成七格，顺序不能乱。开场先抛最反直觉的一条：deny 永远在 allow 前面判——同一条命令既命中 deny 又命中 allow，deny 赢，因为它在管线更靠前。逐格走：①先看有没有被取消；②整条命令撞死 deny 规则，当场拦；③命中 ask 规则，问你——注意这格带锁，连 bypass 模式都盖不过；④交给具体工具自己校验，Bash 会拆子命令、查路径、验 sed，文件工具查路径安全，这里可能直接判死；⑤受保护路径安全检查，.git/.claude 这类，带锁——只有 bypass 模式会放行，其它模式一律不自动放；⑥到这才轮到模式起作用，bypass 在这步直接放；⑦整条命令命中 allow 规则就放，都没命中的灰区，普通模式问你、auto 模式交给分类器。收尾强调那两把锁：带锁的两格，是 bypassPermissions 也拦不住的东西，这解释了下一页为什么说 bypass 不等于无人值守。">
+<section class="slide" data-note="这页把一条命令从请求到放行/拦住/问你的完整关卡链摊开讲。源码里其实是十来步，我合并成七格，顺序不能乱。开场先抛最反直觉的一条：deny 永远在 allow 前面判——同一条命令既命中 deny 又命中 allow，deny 赢，因为它在管线更靠前。逐格走：①先看有没有被取消；②整条命令撞死 deny 规则，当场拦；③命中 ask 规则，问你——注意这格带锁，连 bypass 模式都盖不过；④交给具体工具自己校验，Bash 会拆子命令、查路径、验 sed，文件工具查路径安全，这里可能直接判死；⑤受保护路径安全检查，.git/.claude 这类，带锁——这一步在 bypass 判断之前，所以连 bypass 模式都拦、强制问你，防的是"改掉权限根基文件来自我提权"；⑥到这才轮到模式起作用，bypass 在这步对普通灰区直接放；⑦整条命令命中 allow 规则就放，都没命中的灰区，普通模式问你、auto 模式交给分类器。收尾强调那两把锁：带锁的两格，是 bypassPermissions 也拦不住的东西，这解释了下一页为什么说 bypass 不等于无人值守。">
   <div class="top"><div class="kicker">四、工具与权限</div><div class="chapter">21 / 49</div></div>
   <h2>一条命令，要过哪几道关</h2>
   <p class="subtitle">源码里是十来步，合并成七格看。顺序是写死的——<b>deny 永远在 allow 前面判</b>，所以同一条命令既能 allow 又能 deny 时，deny 赢。</p>
@@ -673,7 +675,7 @@ paste-cache/  <span class="c">// 文件名 = 内容 SHA256 前 16 位（去重�
     <div class="dstep deny-step"><i>1</i><div><b>命中 deny 规则</b><span>整条命令撞死规则 → 当场拦</span></div><em class="tag-out out-deny">拦</em></div>
     <div class="dstep ask-step"><i>2</i><div><b>命中 ask 规则</b><span>如 <code>Bash(git push:*)</code></span></div><em class="lock">🔒 bypass 也拦</em><em class="tag-out out-ask">问</em></div>
     <div class="dstep"><i>3</i><div><b>单工具自校验</b><span>Bash 拆子命令 / 查路径 / 验 sed；文件工具查路径安全</span></div><em class="tag-out out-deny">可判死</em></div>
-    <div class="dstep safe-step"><i>4</i><div><b>受保护路径安全检查</b><span><code>.git</code> <code>.claude</code> <code>.ssh</code> 等</span></div><em class="lock">🔒 仅 bypass 放行</em></div>
+    <div class="dstep safe-step"><i>4</i><div><b>受保护路径安全检查</b><span><code>.git</code> <code>.claude</code> <code>.ssh</code> 等</span></div><em class="lock">🔒 bypass 也拦</em><em class="tag-out out-ask">问</em></div>
     <div class="dstep"><i>5</i><div><b>模式放行</b><span>bypassPermissions 到这一步直接放</span></div><em class="tag-out out-allow">放</em></div>
     <div class="dstep allow-step"><i>6</i><div><b>命中 allow 规则</b><span>如 <code>Bash(npm test:*)</code></span></div><em class="tag-out out-allow">放</em></div>
     <div class="dstep gray-step"><i>7</i><div><b>剩下的灰区</b><span>普通模式问你；auto 模式交给分类器判</span></div><em class="tag-out out-ask">问 / 判</em></div>
